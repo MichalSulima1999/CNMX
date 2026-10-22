@@ -3,6 +3,10 @@
 **Data:** 2026-10-22
 **Narzędzie:** `.ai/scripts/ini_normalize.py` (dry-run domyślnie, `--apply` zapisuje)
 
+> **Uwaga:** pliki `Data/` i `CN.PLMOD/` **nie są śledzone przez git** (repo zawiera tylko
+> pracę nad silnikiem). Naprawy danych z 2026-10-22 istnieją na dysku, w backupach
+> `*.bak_format_*` oraz w historii git do commita `f8f2d6c`.
+
 ## 1. Obowiązujący format
 
 Każdy plik `.ini` w `Data\` i `CN.PLMOD\` musi mieć:

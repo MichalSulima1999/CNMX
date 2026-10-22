@@ -112,25 +112,19 @@ wpis jest pomijany i logowany.
 │  ├─ patches_ab.h            <- eksperymenty A/B
 │  └─ patches_rec*.h          <- warianty rekordów (historia)
 │
-├─ Data/                      <- dane gry (tylko zmienione pliki)
-│  ├─ logic/                  <- goodtypes, houses, jobtypes, humanjobexperiencetypes
-│  └─ text/pol/strings/gameobjects/  <- goods, experiences
-│
-├─ CN.PLMOD/                  <- nakładka moda (tylko zmienione pliki)
-│  ├─ types/houses.ini
-│  ├─ stringstext/gameobjects/houses.ini
-│  ├─ tribetypes12/tribetypes.ini
-│  └─ budynki12/houses/houses.ini
-│
-└─ .ai/                       <- warsztat: dokumentacja i narzędzia
+├─ .ai/                       <- warsztat: dokumentacja i narzędzia
    ├─ docs/                   <- HANDOFF-y, analizy RE, instrukcje, decyzje
    ├─ plans/, reports/
    ├─ scripts/                <- narzędzia analityczne (PE/CIF/fonty); modkit.py = prototyp CLI
    └─ re/, re_out/, re_rust/, decoded/
 ```
 
-Poza repozytorium (celowo): binaria gry i buildów, assety (`Data/`, `DataX/`, `CN.PLMAPS/`,
-`Saves/`, `usermaps/`), `.tools/` (578 MB MinGW + MinHook), logi, `*.bak*`, scratch.
+Poza repozytorium (celowo): **całe dane gry i moda** (`Data/`, `CN.PLMOD/`, `DataX/`,
+`CN.PLMAPS/`, `Saves/`, `usermaps/`), binaria gry i buildów, `.tools/` (578 MB MinGW +
+MinHook), logi, `*.bak*`, scratch. Repozytorium zawiera wyłącznie **naszą pracę nad
+silnikiem**: źródła DLL, tabele patchy, narzędzia i dokumentację. Zmiany w plikach danych
+opisują HANDOFF-y w `.ai/docs/`; historia git sprzed commita `f8f2d6c` nadal zawiera
+usunięte pliki danych.
 
 ---
 

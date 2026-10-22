@@ -46,45 +46,13 @@
 !/etapa_gen/patches_rec_nolimit.h
 !/etapa_gen/patches_rec_scaled.h
 
-# --- dane gry: tylko pliki przez nas zmienione -------------------------------
-!/Data/
-/Data/*
-!/Data/logic/
-/Data/logic/*
-!/Data/logic/goodtypes.ini
-!/Data/logic/houses.ini
-!/Data/logic/jobtypes.ini
-!/Data/logic/humanjobexperiencetypes.ini
-!/Data/text/
-/Data/text/*
-!/Data/text/pol/
-/Data/text/pol/*
-!/Data/text/pol/strings/
-/Data/text/pol/strings/*
-!/Data/text/pol/strings/gameobjects/
-/Data/text/pol/strings/gameobjects/*
-!/Data/text/pol/strings/gameobjects/goods.ini
-!/Data/text/pol/strings/gameobjects/experiences.ini
-
-# --- dane moda (nakladka CN.PLMOD) -------------------------------------------
-!/CN.PLMOD/
-/CN.PLMOD/*
-!/CN.PLMOD/types/
-/CN.PLMOD/types/*
-!/CN.PLMOD/types/houses.ini
-!/CN.PLMOD/stringstext/
-/CN.PLMOD/stringstext/*
-!/CN.PLMOD/stringstext/gameobjects/
-/CN.PLMOD/stringstext/gameobjects/*
-!/CN.PLMOD/stringstext/gameobjects/houses.ini
-!/CN.PLMOD/tribetypes12/
-/CN.PLMOD/tribetypes12/*
-!/CN.PLMOD/tribetypes12/tribetypes.ini
-!/CN.PLMOD/budynki12/
-/CN.PLMOD/budynki12/*
-!/CN.PLMOD/budynki12/houses/
-/CN.PLMOD/budynki12/houses/*
-!/CN.PLMOD/budynki12/houses/houses.ini
+# --- dane gry i moda: NIE sa czescia repo -------------------------------------
+# Pliki Data/ i CN.PLMOD/ naleza do gry/moda i nie sa sledzone. Repozytorium
+# trzyma tylko nasza prace nad silnikiem: zrodla, tabele patchy, narzedzia
+# i dokumentacje. Zmiany w danych opisujemy w .ai/docs/ i backupach *.bak_*.
+# (Historia git do commita f8f2d6c nadal zawiera te pliki.)
+/Data/
+/CN.PLMOD/
 
 # --- dokumentacja i narzedzia analityczne ------------------------------------
 !/.ai/
