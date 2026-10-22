@@ -67,8 +67,23 @@ odwołuje się do CnModa, więc pochodzenie jest oczywiste, ale numeracja 0.x ja
 * **katalog roboczy** `G:\Games\CnMod 1.2` — ścieżki danych i skryptów buildowania,
 * **nazwy DLL** `EtapC.dll` i `cnmod_hook.dll` — są wpisane w `modlauncher.exe`;
   zmiana wymagałaby rekompilacji launchera i aktualizacji wszystkich buildów,
-* **nazwy logów** `logs\etapc.log`, `logs\cnmod_hook.log` — analiza historii i skryptów,
-* **nazwa narzędzia** `modkit.py` (ModKit) — już udokumentowana w `Instrukcja-modkit.md`.
+* **nazwy logów** `logs\etapc.log`, `logs\cnmod_hook.log` — analiza historii i skryptów.
+
+---
+
+## 6. Korekta kierunku: narzędzia (2026-10-22)
+
+Pierwotnie zakładano, że `modkit.py` (CLI, `.ai/scripts/`) będzie rozwijany jako narzędzie
+projektu. **Decyzja zmieniona:** narzędzie docelowe będzie **aplikacją z GUI**, osobnym
+(i większym) projektem — edycja danych przez CLI jest zbyt wymagająca dla moddera.
+
+Konsekwencje:
+
+* `modkit.py` **zostaje w repo** jako źródło sprawdzonej logiki (parsowanie `.ini`/`.cif`,
+  walidacja krzyżowa, limity), ale **nie jest rozwijany** i nie przenosimy go do `modkit/`,
+* `Instrukcja-modkit.md` i `modkit-a.md` mają status **archiwalny**,
+* zakres, architektura i otwarte decyzje nowego narzędzia:
+  `.ai/docs/PLAN-narzedzia-gui.md`.
 
 ---
 

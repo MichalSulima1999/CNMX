@@ -47,7 +47,7 @@ Szczegóły i dowody: `.ai/docs/rozszerzenie-slotow-budynkow-weryfikacja.md`,
 |---|---|---|
 | **1. Dane i tabele** | `EtapC.dll` | **647** patchy w pamięci gry; tabela `etapa_gen/patches_ext.h`, wpisy `{ rva, off, size, {bajty}, "opis" }` |
 | **2. Zachowanie** | `cnmod_hook.dll` | **17** hooków MinHook: tick jednostki, bramki produkcji, magazyny, zapis stanu |
-| **3. Narzędzia** | `.ai/scripts/modkit.py` | ModKit: `inspect`, `validate`, `limits`, `template-house`, `template-good`, `clone-house`, `clone-good` |
+| **3. Narzędzia** | *w budowie* | `modkit.py` to **prototyp CLI, do wycofania** (zostaje jako źródło logiki parsowania i walidacji). Docelowo osobna aplikacja z GUI — patrz `.ai/docs/PLAN-narzedzia-gui.md` |
 
 Wszystko uruchamia `modlauncher.exe`: ładuje `EtapC.dll` i wstrzykuje `cnmod_hook.dll`.
 
@@ -125,7 +125,7 @@ wpis jest pomijany i logowany.
 └─ .ai/                       <- warsztat: dokumentacja i narzędzia
    ├─ docs/                   <- HANDOFF-y, analizy RE, instrukcje, decyzje
    ├─ plans/, reports/
-   ├─ scripts/                <- modkit.py + narzędzia PE/CIF/fonty
+   ├─ scripts/                <- narzędzia analityczne (PE/CIF/fonty); modkit.py = prototyp CLI
    └─ re/, re_out/, re_rust/, decoded/
 ```
 
@@ -169,24 +169,29 @@ modlauncher.exe
 
 ---
 
-## Narzędzia (ModKit)
+## Narzędzia: stan obecny i kierunek
 
-```bat
-python .ai\scripts\modkit.py inspect          :: inwentarz tabel: użyte / wolne / odsiane
-python .ai\scripts\modkit.py validate         :: walidacja krzyżowa (exit = liczba błędów)
-python .ai\scripts\modkit.py limits           :: limity z logicdefines.inc
-python .ai\scripts\modkit.py template-good --id 70 --name stal
-python .ai\scripts\modkit.py template-house --id 60 --name kuznia
-python .ai\scripts\modkit.py clone-house --from 13 --to 60
-```
+**Prototyp (CLI, do wycofania):** `.ai/scripts/modkit.py` — `inspect`, `validate`, `limits`,
+`template-house`, `template-good`, `clone-house`, `clone-good`. Zostaje w repo jako źródło
+sprawdzonej logiki (parsowanie `.ini`/`.cif`, walidacja krzyżowa, limity z `logicdefines.inc`),
+ale **nie jest docelowym narzędziem** i nie warto w niego inwestować.
 
-Instrukcja krok po kroku: `.ai/docs/Instrukcja-modkit.md`.
+**Docelowo: aplikacja z GUI** — osobny, większy projekt. Musi pokryć:
+
+* edycję dóbr, budynków, zawodów i łańcuchów produkcji na **modelu danych gry**, a nie na gołym INI,
+* walidację krzyżową: `goodtypes` ↔ nazwy ↔ grafiki ↔ `houses` ↔ `tribetypes`,
+* pilnowanie limitów silnika i wskazywanie, kiedy potrzebny nowy wpis w `patches_ext.h`,
+* bezpieczny zapis: backup, `diff`, kodowanie cp1250,
+* podgląd ikon oraz łańcucha produkcji (wejście → budynek → wyjście).
+
+Zakres MVP, architektura i otwarte decyzje: `.ai/docs/PLAN-narzedzia-gui.md`.
 
 ---
 
 ## Zasady pracy (ważne dla kolejnych sesji)
 
-1. **EtapC** = dane/tabele. **cnmod_hook** = zachowanie. **ModKit** = praca moddera.
+1. **EtapC** = dane/tabele. **cnmod_hook** = zachowanie. **Narzędzia** = praca moddera
+   (docelowo GUI; `modkit.py` to prototyp).
 2. `cnmod_hook` może dispatcher `0x46BAD7` tylko **obserwować**; zmiana logiki i
    `FUN_0044A0D9` należy do EtapC.
 3. Frida tylko na adresach, których MinHook nie hookuje; wyłącznie odczyt/zapis RAM i patch

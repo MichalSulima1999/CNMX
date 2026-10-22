@@ -49,7 +49,8 @@ Punkt startowy dla nowej sesji. Czytaj **od góry** — najnowsze na początku.
 | Plik | Temat |
 |---|---|
 | [`jak-dodac-budynek-lub-surowiec.md`](jak-dodac-budynek-lub-surowiec.md) | Procedura dodania dobra/budynku. |
-| [`Instrukcja-modkit.md`](Instrukcja-modkit.md), [`modkit-a.md`](modkit-a.md) | ModKit / narzędzia moderskie. |
+| [`PLAN-narzedzia-gui.md`](PLAN-narzedzia-gui.md) | **Docelowe narzędzie z GUI** (zastąpi `modkit.py`): zakres MVP, model danych, architektura, otwarte decyzje. |
+| [`Instrukcja-modkit.md`](Instrukcja-modkit.md), [`modkit-a.md`](modkit-a.md) | *Archiwalne.* Prototyp CLI `modkit.py` — źródło logiki, nie produkt. |
 | [`edytor-etap-d.md`](edytor-etap-d.md), [`etap-d-doprocowanie.md`](etap-d-doprocowanie.md) | Edytor Etap D. |
 | [`status-ctest.md`](status-ctest.md), [`final-status.md`](final-status.md) | Statusy etapów (historyczne). |
 | [`../plans/`](../plans/) | Plany: skalowanie HUD, fonty, wrapper ddraw, narzędzia. |
