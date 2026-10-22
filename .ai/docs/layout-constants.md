@@ -1,0 +1,180 @@
+# Katalog stałych layoutu GUI (Plan 3, Etap 0)
+
+Wygenerowano: 2026-10-06 (skrypt `p3_etap0.py`, analiza statyczna CN.PLMOD.exe)
+
+Konwencja: `push 0x…` w .text z wartościami stałych; odwołania do `[0x569264]`=GUIW / `[0x569268]`=GUIH
+oraz wywołania getterów. Część trafień bywa mid-instruction — zweryfikowane capstone (granice instrukcji).
+
+## 1. Odwołania do globalsów GUI (GUIW=0x569264, GUIH=0x569268)
+
+### GUIW (0x569264) — 37 odwołań
+- `0x0049f553`  mov dword ptr [0x569264], edi
+- `0x004a39c3`  mov eax, dword ptr [0x569264]
+- `0x004a510b`  mov eax, dword ptr [0x569264]
+- `0x004a8844`  add(b/i) byte ptr [ecx + 0x569264], ah
+- `0x004a8845`  mov eax, dword ptr [0x569264]
+- `0x004a886f`  mov eax, dword ptr [0x569264]
+- `0x004adf7c`  mov eax, dword ptr [0x569264]
+- `0x004aefbd`  mov eax, dword ptr [0x569264]
+- `0x004b076f`  mov eax, dword ptr [0x569264]
+- `0x004b0bea`  mov eax, dword ptr [0x569264]
+- `0x004b7408`  mov eax, dword ptr [0x569264]
+- `0x004bc193`  mov eax, dword ptr [0x569264]
+- `0x004bc821`  mov eax, dword ptr [0x569264]
+- `0x004bca27`  mov eax, dword ptr [0x569264]
+- `0x004bcc30`  mov eax, dword ptr [0x569264]
+- `0x004bd3c5`  mov eax, dword ptr [0x569264]
+- `0x004bd759`  mov eax, dword ptr [0x569264]
+- `0x004bd851`  mov eax, dword ptr [0x569264]
+- `0x004bdce2`  mov eax, dword ptr [0x569264]
+- `0x004bde07`  mov eax, dword ptr [0x569264]
+- `0x004be6e4`  mov eax, dword ptr [0x569264]
+- `0x004c094f`  mov eax, dword ptr [0x569264]
+- `0x004c1d44`  mov eax, dword ptr [0x569264]
+- `0x004c337b`  mov eax, dword ptr [0x569264]
+- `0x004c3d1d`  mov eax, dword ptr [0x569264]
+- `0x004c4fb6`  mov eax, dword ptr [0x569264]
+- `0x004c5b55`  adc(b/i) byte ptr [ecx + 0x569264], ah
+- `0x004c5b56`  mov eax, dword ptr [0x569264]
+- `0x004c5ea6`  mov eax, dword ptr [0x569264]
+- `0x004c65b9`  mov eax, dword ptr [0x569264]
+- `0x004c6a28`  mov eax, dword ptr [0x569264]
+- `0x004c6db3`  mov eax, dword ptr [0x569264]
+- `0x004c7647`  mov eax, dword ptr [0x569264]
+- `0x004c7b3e`  mov eax, dword ptr [0x569264]
+- `0x004c7dd6`  mov eax, dword ptr [0x569264]
+- `0x004cb3ba`  mov eax, dword ptr [0x569264]
+- `0x004cf3bb`  mov eax, dword ptr [0x569264]
+
+### GUIH (0x569268) — 61 odwołań
+- `0x0049f559`  mov dword ptr [0x569268], ebp
+- `0x004a1adf`  mov eax, dword ptr [0x569268]
+- `0x004a39a5`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004a39a6`  mov eax, dword ptr [0x569268]
+- `0x004a50eb`  add(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004a50ec`  mov eax, dword ptr [0x569268]
+- `0x004a884b`  mov eax, dword ptr [0x569268]
+- `0x004a8856`  mov eax, dword ptr fs:[0x569268]
+- `0x004a8857`  mov eax, dword ptr [0x569268]
+- `0x004adf5d`  add(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004adf5e`  mov eax, dword ptr [0x569268]
+- `0x004aefa0`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004aefa1`  mov eax, dword ptr [0x569268]
+- `0x004b0752`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004b0753`  mov eax, dword ptr [0x569268]
+- `0x004b0bcd`  mov eax, dword ptr [0x569268]
+- `0x004bc176`  mov eax, dword ptr [0x569268]
+- `0x004bc80e`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004bc80f`  mov eax, dword ptr [0x569268]
+- `0x004bca14`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004bca15`  mov eax, dword ptr [0x569268]
+- `0x004bcc14`  add(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004bcc15`  mov eax, dword ptr [0x569268]
+- `0x004bd3ad`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004bd3ae`  mov eax, dword ptr [0x569268]
+- `0x004bd744`  add(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004bd745`  mov eax, dword ptr [0x569268]
+- `0x004bd838`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004bd839`  mov eax, dword ptr [0x569268]
+- `0x004bdccb`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004bdccc`  mov eax, dword ptr [0x569268]
+- `0x004bddef`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004bddf0`  mov eax, dword ptr [0x569268]
+- `0x004be6c7`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004be6c8`  mov eax, dword ptr [0x569268]
+- `0x004c0933`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004c0934`  mov eax, dword ptr [0x569268]
+- `0x004c1d26`  add(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004c1d27`  mov eax, dword ptr [0x569268]
+- `0x004c3369`  adc(b/i) dword ptr [ecx + 0x569268], esp
+- `0x004c336a`  mov eax, dword ptr [0x569268]
+- `0x004c3cfe`  mov eax, dword ptr [0x569268]
+- `0x004c4f98`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004c4f99`  mov eax, dword ptr [0x569268]
+- `0x004c5b6f`  mov ecx, dword ptr [0x569268]
+- `0x004c5e88`  mov eax, dword ptr [0x569268]
+- `0x004c659f`  mov eax, dword ptr [0x569268]
+- `0x004c6a0a`  sub(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004c6a0b`  mov eax, dword ptr [0x569268]
+- `0x004c6d96`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004c6d97`  mov eax, dword ptr [0x569268]
+- `0x004c7629`  add(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004c762a`  mov eax, dword ptr [0x569268]
+- `0x004c7b20`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004c7b21`  mov eax, dword ptr [0x569268]
+- `0x004c7db9`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004c7dba`  mov eax, dword ptr [0x569268]
+- `0x004c81f7`  mov eax, dword ptr [0x569268]
+- `0x004cb396`  mov eax, dword ptr [0x569268]
+- `0x004cf39d`  adc(b/i) byte ptr [ecx + 0x569268], ah
+- `0x004cf39e`  mov eax, dword ptr [0x569268]
+
+## 2. Wywołania getterów / funkcji pipeline'u (10 wierszy)
+- **GetGUIHeight** — 3 wywołań: 0x4a7814, 0x4a9b5f, 0x4ad3c2
+- **GetGUIWidth** — 3 wywołań: 0x4a7820, 0x4a9b6b, 0x4ad3ce
+- **GetHeight(display)** — 13 wywołań: 0x401372, 0x4017dc, 0x401861, 0x4018ea, 0x401c71, 0x402170, 0x402624, 0x402f83, 0x403534, 0x47840c, 0x478da0, 0x4bffca, 0x4e1085
+- **GetWidth(display)** — 13 wywołań: 0x401364, 0x4017cc, 0x401869, 0x4018f2, 0x401c79, 0x402178, 0x40262c, 0x402f8c, 0x40353c, 0x478414, 0x478dbd, 0x4bffba, 0x4e1051
+- **blit HUD(0x47B0D7)** — 0 wywołań: 
+- **ctor powierzchni(0x40C634)** — 30 wywołań: 0x4025e9, 0x402634, 0x402e06, 0x402f35, 0x402f94, 0x403544, 0x40bf2c, 0x40bf59, 0x40c207, 0x40c296, 0x40c367, 0x40c44d, 0x40c4fd, 0x476686, 0x47dd3d, 0x4902cd, 0x4902da, 0x4a3a4a, 0x4a3a8b, 0x4a621a
+  (+10 więcej)
+- **draw(0x4787B3)** — 5 wywołań: 0x4020b6, 0x4022e7, 0x402795, 0x402cd8, 0x403491
+- **memcpy wierszowe(0x411327)** — 1 wywołań: 0x40cbfa
+- **root widget(0x476643)** — 2 wywołań: 0x49f583, 0x4d1958
+- **stretch(0x40D507)** — 3 wywołań: 0x40264a, 0x402cc5, 0x49033b
+
+## 3. Push-imm z kluczowymi stałymi layoutu
+- `0x64` (100) — 0 miejsc: 
+- `0x8c` (140) — 19 miejsc: 0x47d83a, 0x485694, 0x49fe01, 0x4a4964, 0x4a6cc2, 0x4a8869, 0x4ae670, 0x4b8747, 0x4bdcdc, 0x4bdd44, 0x4c1399, 0x4c42c5, 0x4c68c5, 0x4c7b33, 0x4c7dcb, 0x4c8204, 0x4cd959, 0x4d58da, 0x4e194f
+- `0x96` (150) — 2 miejsc: 0x498a08, 0x4e1995
+- `0xc8` (200) — 24 miejsc: 0x401fe6, 0x402048, 0x404341, 0x40b694, 0x42665a, 0x42666f, 0x42a066, 0x49105a, 0x4b8689, 0x4bc188, 0x4bc81b, 0x4bc9d0, 0x4bca21, 0x4bcbd6, 0x4c433d, 0x4c6a22, 0x4cf6d6, 0x4d1dee, 0x4d7cec, 0x4dd0b1, 0x4e0841, 0x4e099a, 0x4e0a11, 0x4e1af7
+- `0xfa` (250) — 5 miejsc: 0x4bd3b5, 0x4c1634, 0x4c259e, 0x4c33d2, 0x4c437b
+- `0x104` (260) — 17 miejsc: 0x4014e9, 0x4045e0, 0x41069f, 0x41672b, 0x424f14, 0x48026c, 0x4b0764, 0x4bc18d, 0x4bd89b, 0x4c37b4, 0x4c4356, 0x4c6a1d, 0x4dde3b, 0x4e05dd, 0x4eb8f6, 0x4ebd33, 0x4ec09a
+- `0x12c` (300) — 10 miejsc: 0x40395a, 0x403d91, 0x426a6a, 0x4bd841, 0x4c2599, 0x4c5ea0, 0x4c613d, 0x4c6da8, 0x4c7134, 0x4c763c
+- `0x154` (340) — 4 miejsc: 0x4b0769, 0x4c1896, 0x4c453a, 0x4caec8
+- `0x190` (400) — 14 miejsc: 0x40aad4, 0x4267f9, 0x45798d, 0x457a90, 0x457c06, 0x47ecbe, 0x47eea2, 0x4a588d, 0x4b0b67, 0x4b7543, 0x4bb021, 0x4c06a5, 0x4c42a3, 0x4c7dd0
+- `0x1a4` (420) — 14 miejsc: 0x49fb4c, 0x4a39b8, 0x4a5100, 0x4adf71, 0x4aefb2, 0x4b0bdf, 0x4be6d9, 0x4c0944, 0x4c1d39, 0x4c3390, 0x4c3d12, 0x4c4fab, 0x4c6dad, 0x4ee1af
+- `0x1e0` (480) — 7 miejsc: 0x4015a3, 0x4029b8, 0x402a02, 0x403f0e, 0x40402c, 0x4bce93, 0x4c4441
+- `0x1f4` (500) — 19 miejsc: 0x41c144, 0x4a39bd, 0x4a5105, 0x4adf76, 0x4aefb7, 0x4b0be4, 0x4be6de, 0x4c0949, 0x4c105b, 0x4c1d3e, 0x4c2334, 0x4c23a3, 0x4c247b, 0x4c24d0, 0x4c25eb, 0x4c3395, 0x4c3d17, 0x4c4fb0, 0x4dd431
+- `0x226` (550) — 0 miejsc: 
+- `0x258` (600) — 4 miejsc: 0x419eea, 0x4a885f, 0x4b741a, 0x4b93a3
+
+## 4. Histogram push-imm (0x20..0x900) — wzorce stałych
+
+| imm | dec | ile razy | | imm | dec | ile razy |
+|---|---|---|---|---|---|---|
+| `0x100` | 256 | 94 | `0x800` | 2048 | 36 | `0xa0` | 160 | 25 |
+| `0xc8` | 200 | 24 | `0xf8` | 248 | 23 | `0x3e8` | 1000 | 20 |
+| `0x1f4` | 500 | 19 | `0x8c` | 140 | 19 | `0x80` | 128 | 18 |
+| `0x168` | 360 | 17 | `0x104` | 260 | 17 | `0x190` | 400 | 14 |
+| `0x1a4` | 420 | 14 | `0x140` | 320 | 14 | `0xff` | 255 | 13 |
+| `0x8f` | 143 | 12 | `0x103` | 259 | 10 | `0x12c` | 300 | 10 |
+| `0xb4` | 180 | 10 | `0x1ec` | 492 | 10 | `0xf0` | 240 | 9 |
+| `0x82` | 130 | 9 | `0x400` | 1024 | 8 | `0x1b8` | 440 | 8 |
+| `0x88` | 136 | 8 | `0x98` | 152 | 8 | `0xee` | 238 | 8 |
+| `0xcc` | 204 | 8 | `0xb8` | 184 | 8 | `0x1e0` | 480 | 7 |
+| `0xa8` | 168 | 7 | `0x84` | 132 | 7 | `0x8d` | 141 | 7 |
+| `0x90` | 144 | 7 | `0x14a` | 330 | 7 | `0xd0` | 208 | 6 |
+| `0x138` | 312 | 6 | `0x200` | 512 | 6 | `0x18c` | 396 | 6 |
+| `0x144` | 324 | 6 | `0x244` | 580 | 6 | `0xdc` | 220 | 6 |
+| `0x8a` | 138 | 6 | `0xc0` | 192 | 6 | `0x1de` | 478 | 6 |
+| `0x8e` | 142 | 6 | `0x9a` | 154 | 6 | `0x160` | 352 | 6 |
+| `0xc9` | 201 | 6 | `0x3e7` | 999 | 5 | `0x10c` | 268 | 5 |
+| `0x120` | 288 | 5 | `0x740` | 1856 | 5 | `0x460` | 1120 | 5 |
+| `0xc4` | 196 | 5 | `0xde` | 222 | 5 | `0x83` | 131 | 5 |
+| `0xfa` | 250 | 5 | `0x218` | 536 | 4 | `0x180` | 384 | 4 |
+| `0x110` | 272 | 4 | `0x40c` | 1036 | 4 | `0x7e0` | 2016 | 4 |
+| `0x7d0` | 2000 | 4 | `0x408` | 1032 | 4 | `0xc7` | 199 | 4 |
+| `0x258` | 600 | 4 | `0x5a4` | 1444 | 4 | `0xd8` | 216 | 4 |
+| `0x13c` | 316 | 4 | `0xb6` | 182 | 4 | `0x7e8` | 2024 | 4 |
+| `0xd4` | 212 | 4 | `0x8b` | 139 | 4 | `0x19c` | 412 | 4 |
+| `0x154` | 340 | 4 | `0xfc` | 252 | 4 | `0xb5` | 181 | 4 |
+| `0xb9` | 185 | 4 | `0xca` | 202 | 4 | `0x86` | 134 | 4 |
+| `0xe8` | 232 | 3 | `0xe0` | 224 | 3 | `0x1a0` | 416 | 3 |
+| `0x4b8` | 1208 | 3 | `0x320` | 800 | 3 | `0x108` | 264 | 3 |
+| `0xa4` | 164 | 3 | `0x61` | 97 | 3 | `0xd6` | 214 | 3 |
+
+## 5. Tablice fontów (xrefy stringów .fnt)
+- `data\gui\fonts\font08.fnt` @ 0x0050c33c — 1 xrefy push: 0x4e2514
+- `data\gui\fonts\font10.fnt` @ 0x004fe468 — 2 xrefy push: 0x402fb8, 0x4e251e
+- `data\gui\fonts\font12.fnt` @ 0x0050c320 — 1 xrefy push: 0x4e252d
+- `data\gui\fonts\fontdebug.fnt` @ 0x0050c300 — 1 xrefy push: 0x4e253c

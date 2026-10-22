@@ -1,0 +1,28 @@
+# Normalizacja końców linii dla źródeł
+* text=auto
+
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+*.c    text eol=lf
+*.cpp  text eol=lf
+*.h    text eol=lf
+*.hpp  text eol=lf
+*.py   text eol=lf
+*.md   text eol=lf
+*.txt  text eol=lf
+*.json text eol=lf
+
+# Dane gry: kodowanie cp1250, bez żadnej konwersji
+*.ini  -text
+*.cif  -text
+*.sgt  -text
+*.dls  -text
+
+# Binaria
+*.dll  binary
+*.exe  binary
+*.png  binary
+*.bmp  binary
+*.zip  binary

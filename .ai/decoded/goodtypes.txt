@@ -1,0 +1,585 @@
+<CULTURES_CIF_BEGIN><03FD><00000247> Don't modify this line!
+%01%goodtype
+%02%name "water"
+%02%type 1
+%02%landscapetype 3
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%01%goodtype
+%02%name "mud"
+%02%type 2
+%02%landscapetype 14
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 1
+%02%isBioLandscapeFlag 0
+%02%landscapeToHarvest 12
+%02%landscapeToPickup 13
+%02%landscapeToStore 14
+%02%atomicForHarvesting 26
+%01%goodtype
+%02%name "stone"
+%02%type 3
+%02%landscapetype 17
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 1
+%02%isBioLandscapeFlag 0
+%02%landscapeToHarvest 15
+%02%landscapeToPickup 16
+%02%landscapeToStore 17
+%02%atomicForHarvesting 25
+%01%goodtype
+%02%name "wheat"
+%02%type 4
+%02%landscapetype 29
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 1
+%02%isBioLandscapeFlag 0
+%02%landscapeToHarvest 27
+%02%landscapeToPickup 28
+%02%landscapeToStore 29
+%02%atomicForHarvesting 29
+%02%atomicForCultivating 35
+%02%atomicForPlanting 34
+%01%goodtype
+%02%name "wood"
+%02%type 5
+%02%landscapetype 7
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 1
+%02%isBioLandscapeFlag 1
+%02%landscapeToHarvest 4
+%02%landscapeToPickup 6
+%02%landscapeToStore 7
+%02%atomicForHarvesting 24
+%01%goodtype
+%02%name "iron"
+%02%type 6
+%02%landscapetype 20
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 1
+%02%isBioLandscapeFlag 0
+%02%landscapeToHarvest 18
+%02%landscapeToPickup 19
+%02%landscapeToStore 20
+%02%atomicForHarvesting 27
+%01%goodtype
+%02%name "gold"
+%02%type 7
+%02%landscapetype 23
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 1
+%02%isBioLandscapeFlag 0
+%02%landscapeToHarvest 21
+%02%landscapeToPickup 22
+%02%landscapeToStore 23
+%02%atomicForHarvesting 28
+%01%goodtype
+%02%name "coin"
+%02%type 8
+%02%landscapetype 24
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 5 7
+%02%atomicForProduction 51
+%01%goodtype
+%02%name "leather"
+%02%type 9
+%02%landscapetype 25
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 1
+%02%isBioLandscapeFlag 0
+%02%landscapeToHarvest 79
+%02%landscapeToPickup 79
+%02%landscapeToStore 25
+%02%atomicForHarvesting 33
+%02%productionInputGoods 58
+%01%goodtype
+%02%name "wool"
+%02%type 10
+%02%landscapetype 26
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 57
+%01%goodtype
+%02%name "flour"
+%02%type 11
+%02%landscapetype 30
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 4
+%02%atomicForProduction 46
+%01%goodtype
+%02%name "honey"
+%02%type 12
+%02%landscapetype 32
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%atomicForProduction 45
+%02%isBioLandscapeFlag 0
+%02%landscapeToPickup 32
+%02%landscapeToStore 32
+%01%goodtype
+%02%name "herb"
+%02%type 13
+%02%landscapetype 35
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 1
+%02%isBioLandscapeFlag 1
+%02%landscapeToHarvest 33
+%02%landscapeToPickup 34
+%02%landscapeToStore 35
+%02%atomicForHarvesting 31
+%02%atomicForCultivating 35
+%02%atomicForPlanting 34
+%01%goodtype
+%02%name "mushroom"
+%02%type 14
+%02%landscapetype 37
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 1
+%02%isBioLandscapeFlag 1
+%02%landscapeToHarvest 36
+%02%landscapeToPickup 36
+%02%landscapeToStore 37
+%02%atomicForHarvesting 32
+%02%atomicForCultivating 35
+%02%atomicForPlanting 34
+%01%goodtype
+%02%name "holy_oil"
+%02%type 15
+%02%landscapetype 38
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 14
+%02%atomicForProduction 71
+%01%goodtype
+%02%name "food_simple"
+%02%type 16
+%02%landscapetype 39
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%01%goodtype
+%02%name "food_extra"
+%02%type 17
+%02%landscapetype 40
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%01%goodtype
+%02%name "fruit"
+%02%type 18
+%02%landscapetype 41
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 1
+%01%goodtype
+%02%name "bread"
+%02%type 19
+%02%landscapetype 42
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 11 1
+%02%atomicForProduction 47
+%01%goodtype
+%02%name "candy"
+%02%type 20
+%02%landscapetype 43
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 11 1 12
+%02%atomicForProduction 48
+%01%goodtype
+%02%name "meat"
+%02%type 21
+%02%landscapetype 44
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%isBioLandscapeFlag 0
+%02%landscapeToHarvest 80
+%02%landscapeToPickup 80
+%02%landscapeToStore 44
+%02%atomicForHarvesting 33
+%02%atomicForProduction 49
+%01%goodtype
+%02%name "fish"
+%02%type 22
+%02%landscapetype 45
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%01%goodtype
+%02%name "sausage"
+%02%type 23
+%02%landscapetype 46
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 21
+%02%atomicForProduction 49
+%01%goodtype
+%02%name "mead"
+%02%type 43
+%02%landscapetype 47
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 1 12
+%02%atomicForProduction 50
+%01%goodtype
+%02%name "tool_wooden"
+%02%type 31
+%02%landscapetype 48
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 5
+%02%atomicForProduction 59
+%01%goodtype
+%02%name "tool_iron"
+%02%type 32
+%02%landscapetype 49
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 5 6
+%02%atomicForProduction 60
+%01%goodtype
+%02%name "brick"
+%02%type 24
+%02%landscapetype 50
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 2 5
+%02%atomicForProduction 52
+%01%goodtype
+%02%name "tile"
+%02%type 25
+%02%landscapetype 51
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 2 5 2
+%02%atomicForProduction 53
+%01%goodtype
+%02%name "pillar"
+%02%type 26
+%02%landscapetype 52
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 3
+%02%atomicForProduction 54
+%01%goodtype
+%02%name "ornament"
+%02%type 27
+%02%landscapetype 53
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 3 3
+%02%atomicForProduction 55
+%01%goodtype
+%02%name "crockery"
+%02%type 28
+%02%landscapetype 54
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 2 5 5
+%02%atomicForProduction 56
+%01%goodtype
+%02%name "furniture"
+%02%type 29
+%02%landscapetype 55
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 5 5
+%02%atomicForProduction 57
+%01%goodtype
+%02%name "shoes"
+%02%type 30
+%02%landscapetype 56
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 9
+%02%atomicForProduction 58
+%01%goodtype
+%02%name "armor_wool"
+%02%type 33
+%02%armorType 1
+%02%landscapetype 57
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 10
+%02%atomicForProduction 61
+%01%goodtype
+%02%name "armor_leather"
+%02%type 34
+%02%landscapetype 58
+%02%armorType 2
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 9 9
+%02%atomicForProduction 62
+%01%goodtype
+%02%name "armor_chain"
+%02%type 35
+%02%landscapetype 59
+%02%armorType 3
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 5 6 6
+%02%atomicForProduction 63
+%01%goodtype
+%02%name "armor_plate"
+%02%type 36
+%02%landscapetype 60
+%02%armorType 4
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 5 5 6 6 6
+%02%atomicForProduction 64
+%01%goodtype
+%02%name "bow_short"
+%02%type 37
+%02%landscapetype 61
+%02%weaponType 16
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 5
+%02%atomicForProduction 65
+%01%goodtype
+%02%name "bow_long"
+%02%type 38
+%02%landscapetype 62
+%02%weaponType 17
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 5 5
+%02%atomicForProduction 66
+%01%goodtype
+%02%name "spear_wooden"
+%02%type 39
+%02%landscapetype 63
+%02%weaponType 4
+%02%isInputGoodFlag 1
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 5 5
+%02%atomicForProduction 67
+%01%goodtype
+%02%name "spear_iron"
+%02%type 40
+%02%landscapetype 64
+%02%weaponType 5
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 39 6
+%02%atomicForProduction 68
+%01%goodtype
+%02%name "sword_shord"
+%02%type 41
+%02%landscapetype 65
+%02%weaponType 7
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 5 6
+%02%atomicForProduction 69
+%01%goodtype
+%02%name "sword_long"
+%02%type 42
+%02%landscapetype 66
+%02%weaponType 8
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 5 6 6
+%02%atomicForProduction 70
+%01%goodtype
+%02%name "potion_food_small"
+%02%type 44
+%02%landscapetype 67
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 1 14 13 8
+%02%atomicForProduction 72
+%01%goodtype
+%02%name "potion_food_big"
+%02%type 45
+%02%landscapetype 68
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 1 1 14 14 13 13 8 8
+%02%atomicForProduction 73
+%01%goodtype
+%02%name "potion_stamina_small"
+%02%type 46
+%02%landscapetype 69
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 1 14 13 8
+%02%atomicForProduction 74
+%01%goodtype
+%02%name "potion_stamina_big"
+%02%type 47
+%02%landscapetype 70
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 1 1 14 14 13 13 8 8
+%02%atomicForProduction 75
+%01%goodtype
+%02%name "potion_heal_small"
+%02%type 48
+%02%landscapetype 71
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 1 14 13 8
+%02%atomicForProduction 76
+%01%goodtype
+%02%name "potion_heal_big"
+%02%type 49
+%02%landscapetype 72
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 1 1 14 14 13 13 8 8
+%02%atomicForProduction 77
+%01%goodtype
+%02%name "amulet_food"
+%02%type 50
+%02%landscapetype 73
+%01%goodtype
+%02%name "amulet_stamina"
+%02%type 51
+%02%landscapetype 74
+%01%goodtype
+%02%name "amulet_strength"
+%02%type 52
+%02%landscapetype 75
+%01%goodtype
+%02%name "amulet_defense"
+%02%type 53
+%02%landscapetype 76
+%01%goodtype
+%02%name "amulet_critHit"
+%02%type 54
+%02%landscapetype 77
+%01%goodtype
+%02%name "amulet_speed"
+%02%type 55
+%02%landscapetype 78
+%01%goodtype
+%02%name "prey"
+%02%type 56
+%02%landscapetype 1
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 1
+%01%goodtype
+%02%name "sheep"
+%02%type 57
+%02%landscapetype 1
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 4 4 1
+%02%atomicForProduction 85
+%01%goodtype
+%02%name "cattle"
+%02%type 58
+%02%landscapetype 1
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 1
+%02%isProducedOnMapFlag 0
+%02%productionInputGoods 4 4 1 1
+%02%atomicForProduction 86
+%01%goodtype
+%02%name "handcart"
+%02%type 59
+%02%landscapetype 1
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 1
+%02%atomicForProduction 39
+%01%goodtype
+%02%name "oxcart"
+%02%type 60
+%02%landscapetype 1
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 1
+%02%atomicForProduction 39
+%01%goodtype
+%02%name "ship_small"
+%02%type 61
+%02%landscapetype 1
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 1
+%02%atomicForProduction 39
+%01%goodtype
+%02%name "ship_big"
+%02%type 62
+%02%landscapetype 1
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 1
+%02%atomicForProduction 39
+%01%goodtype
+%02%name "catapult"
+%02%type 63
+%02%landscapetype 1
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 1
+%02%atomicForProduction 39
+%01%goodtype
+%02%name "chest"
+%02%type 64
+%02%landscapetype 1
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 0
+%01%goodtype
+%02%name "anything"
+%02%type 65
+%02%landscapetype 1
+%02%isInputGoodFlag 0
+%02%isProducedInHouseFlag 0
+%02%isProducedOnMapFlag 0
+<CULTURES_CIF_END> Don't modify this line!

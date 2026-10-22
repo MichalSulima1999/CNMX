@@ -1,0 +1,34 @@
+<CULTURES_CIF_BEGIN><03FD><00000020> Don't modify this line!
+%01%armortype
+%02%name "woolen armor"
+%02%type 1
+%02%mainType 1
+%02%goodtype 33
+%02%materialType 1
+%02%weight 1
+%02%blockingValue 5
+%01%armortype
+%02%name "leather armor"
+%02%type 2
+%02%mainType 1
+%02%goodtype 34
+%02%materialType 2
+%02%weight 2
+%02%blockingValue 5
+%01%armortype
+%02%name "chain armor"
+%02%type 3
+%02%mainType 2
+%02%goodtype 35
+%02%materialType 3
+%02%weight 3
+%02%blockingValue 5
+%01%armortype
+%02%name "plate armor"
+%02%type 4
+%02%mainType 2
+%02%goodtype 36
+%02%materialType 4
+%02%weight 4
+%02%blockingValue 5
+<CULTURES_CIF_END> Don't modify this line!

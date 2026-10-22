@@ -1,0 +1,118 @@
+# =============================================================================
+# CN.PLMOD / CnMod 1.2 -- repozytorium projektu
+#
+# Zasada: ignorujemy WSZYSTKO (katalog gry to ~1,4 GB assetow), a potem
+# swiadomie odslaniamy tylko pliki, ktore sa nasza praca: zrodla, tabele
+# patchy, zmodyfikowane dane gry i dokumentacje.
+#
+# Dzieki temu `git status` jest czytelny, a gra i buildy nie trafiaja do repo.
+# =============================================================================
+
+/*
+!/.gitignore
+!/.gitattributes
+!/README.md
+!/mod-context.md
+!/build_all.bat
+!/opencode.json
+
+# --- kod: EtapC (patchowanie danych/tabel) -----------------------------------
+!/etapc/
+/etapc/*
+!/etapc/build.bat
+!/etapc/prep_data.py
+!/etapc/src/
+
+# --- kod: cnmod_hook (hooki behawioralne MinHook) ----------------------------
+!/cnmod_hook/
+/cnmod_hook/*
+!/cnmod_hook/build.bat
+!/cnmod_hook/build_dll.bat
+!/cnmod_hook/CMakeLists.txt
+!/cnmod_hook/README.md
+!/cnmod_hook/*.py
+!/cnmod_hook/src/
+!/cnmod_hook/include/
+!/cnmod_hook/test/
+
+# --- tabele patchy (naglowki wciagane przez etapc/src/EtapC.cpp) -------------
+!/etapa_gen/
+/etapa_gen/*
+!/etapa_gen/patches_ext.h
+!/etapa_gen/patches_ab.h
+!/etapa_gen/patches_rec.h
+!/etapa_gen/patches_rec_grow.h
+!/etapa_gen/patches_rec_grow_scaled.h
+!/etapa_gen/patches_rec_nolimit.h
+!/etapa_gen/patches_rec_scaled.h
+
+# --- dane gry: tylko pliki przez nas zmienione -------------------------------
+!/Data/
+/Data/*
+!/Data/logic/
+/Data/logic/*
+!/Data/logic/goodtypes.ini
+!/Data/logic/houses.ini
+!/Data/logic/jobtypes.ini
+!/Data/logic/humanjobexperiencetypes.ini
+!/Data/text/
+/Data/text/*
+!/Data/text/pol/
+/Data/text/pol/*
+!/Data/text/pol/strings/
+/Data/text/pol/strings/*
+!/Data/text/pol/strings/gameobjects/
+/Data/text/pol/strings/gameobjects/*
+!/Data/text/pol/strings/gameobjects/goods.ini
+!/Data/text/pol/strings/gameobjects/experiences.ini
+
+# --- dane moda (nakladka CN.PLMOD) -------------------------------------------
+!/CN.PLMOD/
+/CN.PLMOD/*
+!/CN.PLMOD/types/
+/CN.PLMOD/types/*
+!/CN.PLMOD/types/houses.ini
+!/CN.PLMOD/stringstext/
+/CN.PLMOD/stringstext/*
+!/CN.PLMOD/stringstext/gameobjects/
+/CN.PLMOD/stringstext/gameobjects/*
+!/CN.PLMOD/stringstext/gameobjects/houses.ini
+!/CN.PLMOD/tribetypes12/
+/CN.PLMOD/tribetypes12/*
+!/CN.PLMOD/tribetypes12/tribetypes.ini
+!/CN.PLMOD/budynki12/
+/CN.PLMOD/budynki12/*
+!/CN.PLMOD/budynki12/houses/
+/CN.PLMOD/budynki12/houses/*
+!/CN.PLMOD/budynki12/houses/houses.ini
+
+# --- dokumentacja i narzedzia analityczne ------------------------------------
+!/.ai/
+/.ai/*
+!/.ai/docs/
+!/.ai/plans/
+!/.ai/reports/
+!/.ai/scripts/
+!/.ai/re_out/
+!/.ai/re/
+!/.ai/re_rust/
+!/.ai/decoded/
+!/.ai/patch_all.py
+!/.ai/patch_charcoal_burner.py
+
+# --- smieci (dziala na kazdym poziomie) --------------------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.obj
+*.o
+*.exp
+*.lib
+*.pdb
+*.ilk
+*.tlog
+*.bak
+*.bak_*
+*.orig
+*.broken
+*.NIEUZYWANY

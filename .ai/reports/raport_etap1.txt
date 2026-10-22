@@ -1,0 +1,45 @@
+gen_engine_ext.py — raport pokrycia (Etap 1)
+PATCHE ogółem: 923
+
+ per kategoria:
+  A element stride    : 246
+  B pula imm          : 37
+  B pula disp (smap)  : 14
+  B pula curated      : 7
+  C stride surowce    : 43 (odrzucone 8-bit: 18)
+  D stride domy       : 16 (odrzucone 8-bit: 0)
+  E1 limity copy-loop : 4
+  F GOODS_A   : 142
+  F GOODS_A2  : 148
+  F GOODS_B   : 90
+  F HOUSES_A  : 69
+  F HOUSES_B  : 114
+  F RAZEM             : 563
+
+SPECJALNE (Etap 2/3/4-6, nie generowane):
+  * Sekwencyjny disasm: 331323 instrukcji w .text (skipdata).
+  * C/D wykluczony (dane/UI): 0x00015368 mov dword ptr [ebp - 4], 0x37 — alokator/walker tablicy domów 0x624 (0x151BC=0x37*0x624); patch bez skali alokacji = przepełnienie
+  * C/D wykluczony (dane/UI): 0x00036ADD mov dword ptr [esi + 0x1ec], 0x37 — dane gry: limit per poziom — sekwencja zapisów 0x37..0x32 do [esi+0x1EC]
+  * C/D wykluczony (dane/UI): 0x0004C231 mov dword ptr [esi + 0x1ec], 0x37 — dane gry: limit per poziom — sekwencja zapisów 0x37..0x32 do [esi+0x1EC]
+  * C/D wykluczony (dane/UI): 0x0005F6DE mov dword ptr [ebp + eax*4 - 0x194], 0x37 — dane gry: inicjalizacja tablicy lokalnej wartościami 0xF/0x37/0x26
+  * C/D wykluczony (dane/UI): 0x000BD62F mov dword ptr [ebp - 8], 0x42 — UI lista: [ebp-8]=Y-offset (0x42, +0x16/iter); bound pętli to cmp @0xBD6C1 (niepatchowany)
+  * C/D wykluczony (dane/UI): 0x000D89AF add eax, 0x42 — UI rysowanie: add eax,0x42 = offset pikselowy (kolory 0x64/0xFF, wsp. 0x400)
+  * C/D wykluczony (dane/UI): 0x000D8AAE add eax, 0x42 — UI rysowanie: add eax,0x42 = offset pikselowy (kolory 0x64/0xFF, wsp. 0x400)
+  * E2 (Etap 2): 0x00014289 cmp imm=37 -> 7F validator house < max (record) — wymaga relokacji rekordu, POMINIĘTO w Etapie 1. [OK]
+  * E2 (Etap 2): 0x00014292 cmp imm=42 -> 7F validator good < max (record) — wymaga relokacji rekordu, POMINIĘTO w Etapie 1. [OK]
+  * E2 (Etap 2): 0x000142F4 cmp imm=37 -> 7F validator house flag 0x515C — wymaga relokacji rekordu, POMINIĘTO w Etapie 1. [OK]
+  * E2 (Etap 2): 0x00014315 cmp imm=42 -> 7F validator good (0x50D8) — wymaga relokacji rekordu, POMINIĘTO w Etapie 1. [OK]
+  * E2 (Etap 2): 0x00014336 cmp imm=42 -> 7F validator good (0x511A) — wymaga relokacji rekordu, POMINIĘTO w Etapie 1. [OK]
+  * F pominięty EXCLUDE_RVA @00009E79 (GOODS_B, byte ptr [edx + eax + 0x3c78], 1)
+  * POWTÓRKA KOPIOWANIA SUROWCÓW B (0x9E6C-0x9E82): blok używa esi=acc JOBS (stride 0x38) zamiast acc surowców dla dest +0x3C78. Po relokacji wymaga CODE CAVE (Etap 3): edx = [ebp-0x10](acc 0x7F) + ebx, disp -> NEW_GOODS_B.
+  * 0x9E00 mov [ebp-0x20],0x1AE08 = rozmiar rekordu plemienia — Etap 2.
+  * 0x9E15 mov [ebp-0xc],1 / liczba plemion w pętli — bez zmian (1..41).
+  * EXCLUDED Etap 4/6: 0x00014359 cmp imm=37 (tabele 0x14B3C/0x14C08) — zależne od danych gry.
+  * EXCLUDED Etap 4/6: 0x0001436F cmp imm=42 (tabele 0x14B3C/0x14C08) — zależne od danych gry.
+  * EXCLUDED Etap 4/6: 0x000158D5 cmp imm=37 (walker tablic domów 0x624) — zależne od danych gry.
+  * EXCLUDED Etap 4/6: 0x00015923 cmp imm=37 (walker tablic domów 0x624) — zależne od danych gry.
+  * EXCLUDED Etap 4/6: 0x00015368 cmp imm=37 (walker/alokacja tablicy domów 0x624 (0x151BC = 0x37*0x624)) — zależne od danych gry.
+
+REVIEW (2):
+  F EXCLUDE_DISP 0x1581 @0002D92A (GOODS_A, eax, [eax + eax*4 + 0x1581])
+  F EXCLUDE_DISP 0x201F @000CE79E (GOODS_A2, ecx, [esi + esi*2 + 0x201f])
