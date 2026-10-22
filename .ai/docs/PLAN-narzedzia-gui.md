@@ -106,15 +106,36 @@ cnmx-toolkit/
 
 ---
 
-## 8. Otwarte decyzje
+## 8. Decyzje (podjęte 2026-10-22)
 
-| # | Decyzja | Opcje |
-|---|---|---|
-| 1 | **Stack** | `PySide6` (Qt, najlepszy do tabel/formularzy, pakowanie PyInstaller) · lokalny web UI (Python + przeglądarka, zero zależności) · `tkinter` (jest w stdlib, słabszy UX) |
-| 2 | **Lokalizacja repo** | osobne `cnmx-toolkit` (czystsze, narzędzie ma własne wydania) · w tym repo jako `tools/gui/` |
-| 3 | **Dystrybucja** | portable `.exe` (PyInstaller) · uruchomienie ze źródeł (`python -m cnmx_toolkit`) |
-| 4 | **Język UI** | tylko PL · PL + EN |
-| 5 | **Zakres M0** | tylko odczyt/inwentarz · od razu edycja dobra |
+| # | Decyzja | Wybór | Uzasadnienie |
+|---|---|---|---|
+| 1 | **Stack** | **web UI lokalnie** — Python (`http.server`) + HTML/JS w przeglądarce | zero zależności, brak ryzyka wheels dla Pythona 3.15, dobre grafy łańcuchów; rdzeń i tak jest w modelu danych, nie w widżetach. Później opcjonalnie opakowanie w `pywebview`/Electron |
+| 2 | **Lokalizacja repo** | **osobne repo `cnmx-toolkit`** (proponowany katalog: `G:\Games\cnmx-toolkit`) | narzędzie ma własne wydania i historię; katalog gry zostaje czysty |
+| 3 | **Dystrybucja** | do ustalenia przy M1 (skrypt + `run.bat`, potem opcjonalnie pakiet) | — |
+| 4 | **Język UI** | do ustalenia przy M1 (domyślnie PL) | — |
+| 5 | **Zakres M0** | odczyt + inwentarz (read-only, bez zapisu) | najpierw dowód, że model danych zgadza się z plikami |
 
-Rekomendacja: **PySide6**, osobne repo `cnmx-toolkit`, dystrybucja jako portable exe,
-UI po polsku, M0 = odczyt + inwentarz (najpierw zobaczyć, że model danych się zgadza).
+Odrzucone: **PySide6** (wymagałby drugiego interpretera lub czekania na wheels pod 3.15),
+**Electron/Tauri** (najcięższy projekt, bez przewagi na tym etapie), **tkinter** (słaby UX
+przy dużych tabelach).
+
+**Stan realizacji:** plan zatwierdzony, kod **nie rozpoczęty**.
+
+---
+
+## 9. Ryzyka i obserwacje z danych (do weryfikacji)
+
+1. **`Data/text/pol/strings/gameobjects/goods.ini` jest częściowo uszkodzony kodowaniem.**
+   Plik jest UTF-8, ale zawiera **103 wystąpienia znaku U+FFFD** (`EF BF BD`, czyli „utracony
+   znak"), a poprawnych polskich diakrytyków jest tylko 2. Przykład: `stringn 66 "Węgiel"`
+   jest poprawny, ale większość pozostałych nazw ma w miejscu diakrytyku znak zastępczy.
+   **Do ustalenia:** czy silnik czyta nazwy dóbr z tego `.ini`, czy z `goods.cif` — jeśli z
+   `.ini`, część nazw w grze może być zniekształcona. Nie ruszać bez testu w grze.
+2. **Duplikaty `type` w `goodtypes.ini`** (27, 49, 59, 60) — wygrywa ostatni blok. Narzędzie
+   ma to pokazywać i scalać, nie dokładać kolejny.
+3. **Dwa źródła prawdy dla budynków:** `Data/logic/houses.ini` i `CN.PLMOD/types/houses.ini`
+   (live). Narzędzie musi jawnie wskazywać, który plik edytuje.
+4. **Granica dóbr `0x42 → 0x43`** jest zrobiona punktowo (pętle UI, bramki). Kolejne dobra
+   (68+) będą wymagały nowych wpisów — to nie jest „raz na zawsze".
+
