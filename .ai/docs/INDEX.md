@@ -50,6 +50,7 @@ Punkt startowy dla nowej sesji. Czytaj **od góry** — najnowsze na początku.
 |---|---|
 | [`jak-dodac-budynek-lub-surowiec.md`](jak-dodac-budynek-lub-surowiec.md) | Procedura dodania dobra/budynku. |
 | [`PLAN-narzedzia-gui.md`](PLAN-narzedzia-gui.md) | **Docelowe narzędzie z GUI** (zastąpi `modkit.py`): zakres MVP, model danych, architektura, otwarte decyzje. |
+| [`STANDARD-pliki-ini.md`](STANDARD-pliki-ini.md) | **Format danych:** cp1250, CRLF, bez BOM; co naprawiono 2026-10-22 i jak działa odtwarzanie utraconych liter (`.ai/scripts/ini_normalize.py`). |
 | [`Instrukcja-modkit.md`](Instrukcja-modkit.md), [`modkit-a.md`](modkit-a.md) | *Archiwalne.* Prototyp CLI `modkit.py` — źródło logiki, nie produkt. |
 | [`edytor-etap-d.md`](edytor-etap-d.md), [`etap-d-doprocowanie.md`](etap-d-doprocowanie.md) | Edytor Etap D. |
 | [`status-ctest.md`](status-ctest.md), [`final-status.md`](final-status.md) | Statusy etapów (historyczne). |
