@@ -26,3 +26,7 @@
 *.png  binary
 *.bmp  binary
 *.zip  binary
+
+# Pliki konfiguracyjne repozytorium
+/.gitignore     text eol=lf
+/.gitattributes text eol=lf
