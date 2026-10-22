@@ -90,6 +90,7 @@ wpis jest pomijany i logowany.
 ```
 .
 ├─ README.md                  <- ten plik
+├─ AGENTS.md                  <- instrukcja dla agentów AI (zasady, ograniczenia, konwencje)
 ├─ mod-context.md             <- kontekst RE (struktury, funkcje, offsety)
 ├─ build_all.bat              <- buduje oba DLL-ki
 ├─ opencode.json              <- konfiguracja środowiska AI (MCP: rea)

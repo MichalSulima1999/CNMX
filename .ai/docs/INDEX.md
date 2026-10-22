@@ -12,6 +12,7 @@ Punkt startowy dla nowej sesji. Czytaj **od góry** — najnowsze na początku.
 
 | Plik | Co zawiera |
 |---|---|
+| [`../../AGENTS.md`](../../AGENTS.md) | **Zasady pracy agenta:** podział EtapC vs cnmod_hook, twarde ograniczenia, konwencje patchy i danych, pułapki środowiska, stan projektu. |
 | [`HANDOFF-2026-10-22-WIERSZ-PRODUKTU-PRACA.md`](HANDOFF-2026-10-22-WIERSZ-PRODUKTU-PRACA.md) | **Najnowszy.** Wiersz „Węgiel ∞" w sekcji „Praca" (root cause `0x4AC6E9`), strażnik `revmap[66]` (węgiel→mąka), stan wdrożenia, lista otwartych tematów. |
 | [`HANDOFF-2026-10-22-DOSWIADCZENIE-SMOLARZ.md`](HANDOFF-2026-10-22-DOSWIADCZENIE-SMOLARZ.md) | Doświadczenie job 56: rekord typu 71, `humanjobexperiencetypes.ini`, „Wypalanie Węgla". |
 | [`HANDOFF-2026-10-21-ZAPIS-SMOLARZ.md`](HANDOFF-2026-10-21-ZAPIS-SMOLARZ.md) | Crash przy zapisie/wczytaniu, `STRIDE_PLIST`, spam w logach. |
