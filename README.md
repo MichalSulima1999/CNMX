@@ -1,8 +1,18 @@
-# CnMod 1.2 — repozytorium projektu
+# Culturesnation Mod 1.2 (CnMod) — repozytorium projektu
 
-Modyfikacja do **Knights of Honor / CN.PLMOD.exe** (Węgry→Polska, „CnMod 1.2"):
-dodanie łańcucha produkcji **węgla drzewnego** (dobro 66, praca 56 „Smolarz")
-oraz szeregu poprawek silnika ładowanych w czasie działania gry.
+Mod do gry **Ósmy Cud Świata** z serii **Cultures** (`CN.PLMOD.exe`, PE32/x86).
+Główny wątek prac: dodanie łańcucha produkcji **węgla drzewnego** (dobro 66,
+praca 56 „Smolarz") oraz szereg poprawek silnika ładowanych w czasie działania gry.
+
+## O grze
+
+| | |
+|---|---|
+| Gra | **Ósmy Cud Świata** — seria *Cultures* (strategia ekonomiczna) |
+| Mod | **Culturesnation Mod 1.2** — plik `CN.PLMOD.exe` |
+| Silnik | własny, PE32 (x86), ImageBase `0x400000`, `SizeOfImage 0x174000` |
+| Dane gry | tekstowe `.ini`/`.cif` w `Data/` + nakładka moda w `CN.PLMOD/` |
+| Warstwa runtime | `EtapC.dll` (patche) i `cnmod_hook.dll` (hooki), wstrzykiwane przez `modlauncher.exe` |
 
 Repozytorium jest zakorzenione w katalogu gry (`G:\Games\CnMod 1.2`), ponieważ
 gra ładuje pliki danych wyłącznie z tych ścieżek, a skrypty budowania korzystają

@@ -1,6 +1,6 @@
 CN.PLMOD.exe - Stan Reverse Engineeringu
 Data: 2026-10-18  
-Cel: Reverse engineering silnika gry typu Knights & Merchants w celu dodania nowych budynków, surowców i zawodów
+Cel: Reverse engineering silnika gry Ósmy Cud Świata (seria Cultures) w celu dodania nowych budynków, surowców i zawodów
 1. Architektura binarnego
 Pole	Wartość
 Format	PE32 (x86)
