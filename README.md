@@ -157,9 +157,9 @@ Działa i jest zweryfikowane w grze:
 Otwarte tematy: transport między budynkami (job 24), sprzedaż węgla, duplikaty
 `type` w `goodtypes.ini`, weryfikacja ikony węgla.
 
-Szczegóły i pełna dokumentacja poprawek:
-`.ai/docs/HANDOFF-2026-10-22-WIERSZ-PRODUKTU-PRACA.md` oraz pozostałe pliki
-`HANDOFF-*.md` w `.ai/docs/`.
+**Dokumentacja: zacznij od [`.ai/docs/INDEX.md`](.ai/docs/INDEX.md)** —
+indeks wszystkich HANDOFF-ów, analiz RE i instrukcji. Najnowszy wpis:
+`.ai/docs/HANDOFF-2026-10-22-WIERSZ-PRODUKTU-PRACA.md`.
 
 ---
 
