@@ -1,6 +1,12 @@
-# Indeks dokumentacji — CnMod 1.2
+# Indeks dokumentacji — CnMod Extended (CNMX)
 
 Punkt startowy dla nowej sesji. Czytaj **od góry** — najnowsze na początku.
+
+## 0. Decyzje projektowe
+
+| Plik | Co zawiera |
+|---|---|
+| [`DECYZJA-2026-10-22-NAZWA-PROJEKTU.md`](DECYZJA-2026-10-22-NAZWA-PROJEKTU.md) | **Obowiązująca nazwa i zakres:** CnMod Extended (CNMX) = rozszerzenie silnika + ModKit. Węgiel drzewny to tylko pierwszy przypadek użycia. Tu też: czego świadomie **nie** zmieniamy (DLL, katalog, logi). |
 
 ## 1. Zacznij tutaj
 
