@@ -156,6 +156,7 @@ static uint32_t  g_ucacheN = 0;
 struct OwnerCache { void* bldg; uint32_t key; void* ret; };
 static OwnerCache g_ocache[128];
 static uint32_t   g_ocacheN = 0;
+static bool       g_b644Dumped = false;
 
 static bool ucache_get(void* u, UnitCache** out)
 {
@@ -346,6 +347,19 @@ static void* __fastcall hook_find_owner(void* self, void* edx, uint32_t key)
     void* ret = o_find_owner(self, edx, key);
 
     uint32_t htype = *(uint32_t*)((char*)self + B_HOUSETYPE);
+
+    // Diagnostyka: jednorazowy zrzut tablicy wlascicieli dla smolarni.
+    // Pokazuje, jakie wpisy (owner/tribe) budynek faktycznie ma w +0x644.
+    if (!g_b644Dumped && htype == TYPE_SMOLARNIA) {
+        g_b644Dumped = true;
+        clog("[owner] DUMP +0x644 htype=57 key=0x%X ret=%p\n", key, ret);
+        for (uint32_t i = 0; i < 20; i++) {
+            uint32_t v = *(uint32_t*)((char*)self + 0x644 + i * 4);
+            if (v)
+                clog("   +0x%03X [%02u] = %u (0x%X)\n", 0x644 + i * 4, i, v, v);
+        }
+    }
+
     bool interesting = (htype == TYPE_SMOLARNIA || ret == nullptr);
 
     // cache: loguj tylko na zmianie (albo zawsze dla NULL - bezpiecznictwo)
