@@ -13,7 +13,9 @@ Punkt startowy dla nowej sesji. Czytaj **od góry** — najnowsze na początku.
 | Plik | Co zawiera |
 |---|---|
 | [`../../AGENTS.md`](../../AGENTS.md) | **Zasady pracy agenta:** podział EtapC vs cnmod_hook, twarde ograniczenia, konwencje patchy i danych, pułapki środowiska, stan projektu. |
-| [`HANDOFF-2026-10-22-WIERSZ-PRODUKTU-PRACA.md`](HANDOFF-2026-10-22-WIERSZ-PRODUKTU-PRACA.md) | **Najnowszy.** Wiersz „Węgiel ∞" w sekcji „Praca" (root cause `0x4AC6E9`), strażnik `revmap[66]` (węgiel→mąka), stan wdrożenia, lista otwartych tematów. |
+| [HANDOFF-2026-10-26-MAGAZYN-KATEGORIE.md](HANDOFF-2026-10-26-MAGAZYN-KATEGORIE.md) | **Najnowszy.** Magazyn/kategorie: panel budynku FUN_004a693b filtr <=0x37 (4 patche 0x000A7333/0xA7434/0xA7EF7/0xA7FB3), logicstock 66 dla stock 00/01/02; udokumentowano logike grupowania dobr (FUN_0045cbbe -> FUN_004e1b04, kategorie w oknie targu, panel magazynu bez kategorii). Tabela 683 wpisow, EtapC.dll przebudowany. |
+| [`HANDOFF-2026-10-24-WEGIEL-OBRAZEK-I-MAGAZYN.md`](HANDOFF-2026-10-24-WEGIEL-OBRAZEK-I-MAGAZYN.md) | **Najnowszy.** Brak obrazka i magazynu dla węgla (good 66): dodano `logicgood 66` / `good_stone` do `goodgraphics.cif`; patche EtapC `0x42→0x43` już zastosowane (678/678) w tym magazyn `0x497D63`, ikona `0x7E7D0`, tablica `0x8A193`. |
+| [`HANDOFF-2026-10-22-WIERSZ-PRODUKTU-PRACA.md`](HANDOFF-2026-10-22-WIERSZ-PRODUKTU-PRACA.md) | Wiersz „Węgiel ∞" w sekcji „Praca" (root cause `0x4AC6E9`), strażnik `revmap[66]` (węgiel→mąka), stan wdrożenia, lista otwartych tematów. |
 | [`HANDOFF-2026-10-22-DOSWIADCZENIE-SMOLARZ.md`](HANDOFF-2026-10-22-DOSWIADCZENIE-SMOLARZ.md) | Doświadczenie job 56: rekord typu 71, `humanjobexperiencetypes.ini`, „Wypalanie Węgla". |
 | [`HANDOFF-2026-10-21-ZAPIS-SMOLARZ.md`](HANDOFF-2026-10-21-ZAPIS-SMOLARZ.md) | Crash przy zapisie/wczytaniu, `STRIDE_PLIST`, spam w logach. |
 | [`HANDOFF-2026-10-20-PRODUKCJA-ROOT-CAUSE.md`](HANDOFF-2026-10-20-PRODUKCJA-ROOT-CAUSE.md) | Root cause produkcji węgla (bramka `0x42DA65`, `prodmap`, `can_produce`). |

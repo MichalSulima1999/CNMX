@@ -59,6 +59,7 @@ static const uintptr_t VA_STOCK_ADD  = 0x44B910;
 //   0x47377c: call 431DDF thiscall(building, selgood)  - druga bramka
 // Stany +0xACC: 0->praca w tle, 2/4->powrot, 5->zajety praca (0x473791)
 static const uintptr_t VA_GATE_42DA65 = 0x42DA65;
+static const uintptr_t VA_SCHED_44A0D9 = 0x44A0D9;
 static const uintptr_t VA_GATE_42DB20 = 0x42DB20;  // czy good na liscie produkcyjnej joba?
 static const uintptr_t VA_GATE_44B58A = 0x44B58A;
 static const uintptr_t VA_GATE_42C977 = 0x42C977;
@@ -81,6 +82,14 @@ static const uintptr_t VA_GATE_431F37 = 0x431F37;  // revmap dobro->slot; arg = 
 static const uintptr_t VA_SET_ACTION   = 0x45C17B;
 static const uintptr_t VA_PROD_FINISH  = 0x468BAE;
 static const uintptr_t VA_STOCK_WRITE  = 0x431B53;
+static const uintptr_t VA_CARRY_RENDER_42D575 = 0x42D575;
+static const uintptr_t VA_PICKUP_4760BF = 0x4760BF;   // inicjacja niesienia dobra
+static const uintptr_t VA_CARRY_FRAMES_42CEA6 = 0x42CEA6; // para klatek animacji niesienia (thiscall, 0 arg.)
+static const uintptr_t VA_ANIM_LOOKUP_45D14F = 0x45D14F; // szuka wariantu animacji (thiscall, ret 8)
+static const uintptr_t VA_ANIM_SETUP_45C23E  = 0x45C23E; // setup sprite'a niesienia (thiscall, ret 8)
+static const uintptr_t VA_GATE_46B696 = 0x46B696;     // brama do carry render (if [unit+0xAD4]==0 call 0x42D575)
+static const uintptr_t VA_CARRY_LOOKUP_45C94B = 0x45C94B; // lookup carry animation slot
+static const uintptr_t VA_ACTION_LOOP_46B621 = 0x46B621;   // main action loop (FUN_0046b621)
 
 // Globals gry
 static const uintptr_t VA_PBUILDINGS   = 0x510BD0;  // [0x510BD0] = wsk. na tablice instancji budynkow
@@ -116,7 +125,7 @@ static const uint32_t TYPE_SMOLARNIA = 57;
 
 static FILE*      g_log    = nullptr;
 static uint32_t   g_lines  = 0;
-static const uint32_t MAX_LINES = 120000;
+static const uint32_t MAX_LINES = 500000;
 
 static void clog(const char* fmt, ...)
 {
@@ -157,6 +166,10 @@ struct OwnerCache { void* bldg; uint32_t key; void* ret; };
 static OwnerCache g_ocache[128];
 static uint32_t   g_ocacheN = 0;
 static bool       g_b644Dumped = false;
+static bool       g_good66Dumped = false;
+static bool       g_tablePatched = false;
+static int        g_carryLookupCalls = 0;
+static int        g_actionLoopCalls = 0;
 
 static bool ucache_get(void* u, UnitCache** out)
 {
@@ -212,6 +225,7 @@ static FnUnit0     o_case46bdc1 = nullptr;
 static FnFindOwner o_find_owner = nullptr;
 static FnStockAdd  o_stock_add  = nullptr;
 static FnGateUG    o_gate_42da65 = nullptr;
+static FnUnit0     o_sched_44a0d9 = nullptr;
 static FnGateUG    o_gate_44b58a = nullptr;
 static FnGateU     o_gate_42c977 = nullptr;
 static FnGateBG    o_gate_4316f3 = nullptr;
@@ -220,6 +234,23 @@ static FnUnitTick  o_tick_473618 = nullptr;
 static FnGateBG1   o_gate_431ced = nullptr;   // Faza 1.6
 static FnGateBG1   o_gate_431f37 = nullptr;   // Faza 1.6
 static FnSetAction o_set_action  = nullptr;   // Faza 3
+typedef void (__thiscall *FnCarryRender)(void* self, int param);
+static FnCarryRender o_carry_render_42d575 = nullptr;
+// FUN_004760BF: thiscall, ZERO argumentow stosu (konczy sie `ret`) - patrz objdump.
+typedef void (__thiscall *FnPickup)(void* self);
+static FnPickup    o_pickup_4760bf = nullptr;
+// FUN_0042CEA6: thiscall, ZERO argumentow stosu, zwraca wskaznik na pare klatek
+// animacji niesienia (dla jednostki poza budynkiem: jobs[unit+0xC]+0x12).
+typedef int* (__thiscall *FnCarryFrames)(void* self);
+static FnCarryFrames o_carry_frames_42cea6 = nullptr;
+// FUN_0045D14F / FUN_0045C23E: thiscall, 2 arg. stosu, `ret 8` (sprzata wywolywany).
+typedef bool (__thiscall *FnAnimPair)(void* self, short* a, short* b);
+static FnAnimPair o_anim_lookup_45d14f = nullptr;
+static FnAnimPair o_anim_setup_45c23e  = nullptr;
+static void(__thiscall* o_action_loop_46b621)(void*, int) = nullptr;
+
+// zdefiniowana nizej - zrzut tabeli renderu niesionego dobra
+static void dump_carry_table_once();
 static FnUnit0     o_prod_finish = nullptr;   // Faza 3
 static FnStockWrite o_stock_write = nullptr;  // Faza 3
 
@@ -588,7 +619,380 @@ static int32_t __fastcall hook_gate_431f37(void* self, void* edx, int32_t good)
              self, *(uint32_t*)((char*)self + B_HOUSETYPE), good, r,
              (unsigned long long)g_nG431F37);
     }
+
+    if (!g_good66Dumped) {
+        g_good66Dumped = true;
+        char** ggt = (char**)0x511420;
+        void** gga = (void**)0x568740;
+        uint32_t lt = 0xFFFFFFFF, fl = 0xFFFFFFFF;
+        if (ggt && *ggt) {
+            lt = *(uint32_t*)(*ggt + 66 * 0xD0 + 0x20);
+            fl = *(uint32_t*)(*ggt + 66 * 0xD0 + 0x30);
+        }
+        intptr_t pal = -1;
+        if (gga && *gga) pal = *(intptr_t*)((char*)*gga + 66 * 4);
+        clog("[good66] landscapetype=%u flags=0x%08X palette=%p (basePal=%p baseGood=%p)\n",
+             lt, fl, (void*)pal, *gga, *ggt);
+    }
+
+    // Patch table 0x512750 (carry render): entry for type 19 (coal) <- copy from type 20 (iron, known-good)
+    if (!g_tablePatched) {
+        void** tbl = (void**)0x512750;
+        if (tbl && *tbl) {
+            char* base = (char*)*tbl;
+            char* e19 = base + 19 * 0x184;
+            char* e20 = base + 20 * 0x184;
+            if (e20[0] != 0) {
+                memcpy(e19, e20, 0x184);
+                *(uint32_t*)(e19 + 0x10) = 66;
+                clog("[table] patched type19 from type20: first=%d good=%u\n", e19[0], *(uint32_t*)(e19+0x10));
+                g_tablePatched = true;
+            } else {
+                // tablica zaladowana - policz wypelnione wpisy
+                int filled = 0;
+                for (int t = 0; t < 88; t++) if (base[t * 0x184] != 0) filled++;
+
+                // jesli typ 19 pusty a tablica ma cos -> zaladuj recznie (kopiuj z typu 0)
+                if (filled > 0 && e19[0] == 0) {
+                    char* e0 = base + 0 * 0x184;
+                    memcpy(e19, e0, 0x184);
+                    *(uint32_t*)(e19 + 0x10) = 66;
+                    clog("[table] MANUAL PATCH type19: first=%d good=%u +0x04=%u (copied from type0)\n",
+                         (unsigned char)e19[0], *(uint32_t*)(e19+0x10), *(uint32_t*)(e19+0x04));
+                    g_tablePatched = true;
+                } else if (e19[0] != 0) {
+                    g_tablePatched = true;
+                }
+                // log co 5000 dla diag
+                static uint64_t tb_cnt = 0;
+                if (++tb_cnt % 5000 == 0) {
+                    int first_filled = -1;
+                    for (int t = 0; t < 88; t++) if (base[t * 0x184] != 0) { first_filled = t; break; }
+                    clog("[table] (call %llu) base=%p filled=%d first_filled=%d entry19_first=%d entry20_first=%d\n",
+                         (unsigned long long)tb_cnt, base, filled, first_filled, (unsigned char)e19[0], (unsigned char)e20[0]);
+                }
+            }
+        } else if (!g_tablePatched) {
+            static bool logged = false;
+            if (!logged) { logged = true; clog("[table] base ptr NULL (0x512750=%p)\n", *tbl); }
+        }
+    }
     return r;
+}
+
+// ============================================================================
+// Detour: FUN_0045c94b (0x45C94B) - lookup carry animation slot for good.
+// If good=66 (coal) not found in 4 slots, populate empty slot and return it.
+// ============================================================================
+static int __thiscall hook_carry_lookup_45c94b(void* self, int good)
+{
+    g_carryLookupCalls++;
+    
+    int* slots = (int*)((char*)self + 0xAF4);  // [0]=good0, [1]=count0, [2]=good1, [3]=count1, ...
+    
+    // log ALL calls
+    if (good == 66 || g_carryLookupCalls < 20) {
+        clog("[carryLookup] #%d unit=%p good=%d slots: ", g_carryLookupCalls, self, good);
+        for (int i = 0; i < 4; i++) {
+            clog("%d:(g=%d c=%d) ", i, slots[i*2], slots[i*2+1]);
+        }
+        clog("\n");
+    }
+    
+    for (int i = 0; i < 4; i++) {
+        if (slots[i * 2] == good && slots[i * 2 + 1] >= 1) {
+            return i;  // found
+        }
+    }
+    // not found - if coal (66), populate first empty slot
+    if (good == 66) {
+        for (int i = 0; i < 4; i++) {
+            if (slots[i * 2] == 0) {  // empty slot
+                slots[i * 2] = 66;
+                slots[i * 2 + 1] = 100;  // count = 100 (required by FUN_0045caa8)
+                clog("[carrySlot] populated slot %d for coal (unit=%p)\n", i, self);
+                return i;
+            }
+        }
+    }
+    return -1;  // not found, no empty slot
+}
+
+// ============================================================================
+// Detour: FUN_0046b621 (0x46B621) - main action loop.
+// Naprawa animacji niesienia węgla: dla smolarza niosącego węgiel,
+// tymczasowo zerujemy +0xAD4 (blokuje ścieżkę kat 5), wypełniamy slot carry
+// (+0xAF4/+0xAF8, count=100) i ustawiamy +0xAD0=66. Oryginał wtedy przechodzi
+// przez FUN_0045C94b → FUN_0045caa8 → FUN_0045c62b → animacja niesienia.
+// Po powrocie przywracamy +0xAD4 (dostawa musi działać dalej).
+// ============================================================================
+static void __fastcall hook_action_loop_46b621(void* self, void* edx, int param_1)
+{
+    // Zabezpieczenie: self == nullptr podczas inicjalizacji gry
+    if (self == nullptr) {
+        o_action_loop_46b621(self, param_1);
+        return;
+    }
+
+    g_actionLoopCalls++;
+    uint32_t job = *(uint32_t*)((char*)self + U_JOB);
+    uint32_t ad0 = *(uint32_t*)((char*)self + 0xAD0);
+    uint32_t ad4 = *(uint32_t*)((char*)self + 0xAD4);
+    bool saved_ad4 = false;
+    uint32_t orig_ad4 = 0;
+
+    // Logowanie każdego smolarza (diagnostyka)
+    if (job == JOB_SMOLARZ) {
+        clog("[anim] SMOLARZ unit=%p ad0=%u ad4=%u param=%d\n", self, ad0, ad4, param_1);
+    }
+
+    if (job == JOB_SMOLARZ && (ad0 == GOOD_COAL || ad4 == GOOD_COAL)) {
+        orig_ad4 = ad4;
+        saved_ad4 = true;
+
+        // Wypełnij slot carry dla węgla (good=66, count=100)
+        int* slots = (int*)((char*)self + 0xAF4);
+        int empty = -1;
+        bool already = false;
+        for (int i = 0; i < 4; i++) {
+            if (slots[i * 2] == GOOD_COAL && slots[i * 2 + 1] >= 1) { already = true; break; }
+            if (slots[i * 2] == 0 && empty < 0) empty = i;
+        }
+        if (!already && empty >= 0) {
+            slots[empty * 2] = GOOD_COAL;
+            slots[empty * 2 + 1] = 100;
+            clog("[anim] slot %d wypełniony dla węgla (unit=%p)\n", empty, self);
+        }
+
+        // Ustaw +0xAD0=66
+        if (ad0 != GOOD_COAL) {
+            *(uint32_t*)((char*)self + 0xAD0) = GOOD_COAL;
+        }
+
+        // Zeruj +0xAD4 żeby ścieżka kat 5 była osiągalna (oryginał ma +0xAD4!=0 → idzie do dostawy)
+        *(uint32_t*)((char*)self + 0xAD4) = 0;
+
+        clog("[anim] przygotowano węgiel: ad0=%u ad4=0 (unit=%p)\n",
+             *(uint32_t*)((char*)self + 0xAD0), self);
+    }
+
+    // call original via MinHook trampoline (avoids recursion)
+    o_action_loop_46b621(self, param_1);
+
+    // Przywróć +0xAD4 jeśli był zapisany
+    if (saved_ad4) {
+        *(uint32_t*)((char*)self + 0xAD4) = orig_ad4;
+    }
+}
+
+// ============================================================================
+// Detour: 0x46B696 - wywoluje 0x42D575 (carry render) gdy [unit+0xAD4]==0.
+// To jest BRAMA do carry render. Logujemy, czy smolarz tutaj trafia.
+// ============================================================================
+static void __fastcall hook_gate_46b696(void* self, void* edx, int a)
+{
+    // Zabezpieczenie: self == nullptr podczas inicjalizacji gry
+    if (self == nullptr) {
+        // wywolujemy oryginalna logike bez trampoliny (nie ma o_gate_46b696)
+        // 0x46B696 to wewnetrzna brama, nie ma oryginalnej funkcji do wywolania
+        // tylko sprawdzamy warunek i ewentualnie wywolujemy carry_render przez trampoline
+        uint32_t ad4 = 0;  // nie wiemy, zakladamy 0
+        if (ad4 == 0 && o_carry_render_42d575 != nullptr) {
+            o_carry_render_42d575(self, a);
+        }
+        return;
+    }
+
+    // self = unit (ESI), a = param (push edx w caller)
+    // sprawdzamy [self+0xAD4] - czy == 0?
+    uint32_t ad4 = *(uint32_t*)((char*)self + 0xAD4);
+    uint32_t ad0 = *(uint32_t*)((char*)self + 0xAD0);
+    if (ad0 == 66) { // tylko wegiel
+        clog("[gate46B696] unit=%p ad4=%u ad0=%u (wegiel!) call_carry_render=%s\n",
+             self, ad4, ad0, (ad4 == 0) ? "TAK (ad4==0)" : "NIE (ad4!=0)");
+    }
+    // oryginalna logika: if (ad4 == 0) call 0x42D575
+    if (ad4 == 0 && o_carry_render_42d575 != nullptr) {
+        o_carry_render_42d575(self, a);
+    }
+}
+
+// ============================================================================
+// Detour: FUN_004760BF - inicjacja podniesienia/niesienia dobra przez jednostke.
+// SYGNATURA: thiscall, ZERO argumentow stosu (konczy sie `ret`, nie `ret N`).// TYLKO LOG - zero modyfikacji stanu gry (poprzednia wersja z 4 arg. rozjechala
+// stos i powodowala crash przy starcie).
+// ============================================================================
+static void __thiscall hook_pickup_4760bf(void* self)
+{
+    if (self == nullptr) { o_pickup_4760bf(self); return; }
+
+    uint32_t sel     = *(uint32_t*)((char*)self + 0x1C);
+    uint32_t job     = *(uint32_t*)((char*)self + 0x18);
+    uint32_t atomic_ = *(uint32_t*)((char*)self + 0x0C);
+    uint32_t ad0     = *(uint32_t*)((char*)self + 0xAD0);
+    uint32_t ad4     = *(uint32_t*)((char*)self + 0xAD4);
+
+    o_pickup_4760bf(self);
+
+    // logujemy tylko wybrane dobra (wegiel) albo pierwsze 30 wywolan dowolnych
+    static int nPickup = 0;
+    nPickup++;
+    if (sel == GOOD_COAL || ad4 == GOOD_COAL || nPickup <= 30) {
+        clog("[pickup] unit=%p sel=%u job=%u atomic=%u | PRZED ad0=%u ad4=%u | PO ad0=%u ad4=%u\n",
+             self, sel, job, atomic_, ad0, ad4,
+             *(uint32_t*)((char*)self + 0xAD0), *(uint32_t*)((char*)self + 0xAD4));
+    }
+}
+
+// ============================================================================
+// Detour: FUN_0042CEA6 - zwraca pare klatek animacji niesienia.
+// SYGNATURA: thiscall, ZERO argumentow stosu, zwraca int*.
+//   - jednostka W budynku: klatki z rekordu budynku (0x54C) / 0x437851 / 0x4411CA
+//   - jednostka POZA budynkiem: [0x510BF0] + [unit+0xC]*0x58 + 0x12  <- para short
+// To jest miejsce, ktore decyduje, czy niesione dobro ma animacje.
+// TYLKO LOG.
+// ============================================================================
+static int* __thiscall hook_carry_frames_42cea6(void* self)
+{
+    if (self == nullptr) return o_carry_frames_42cea6(self);
+
+    uint32_t ad4 = *(uint32_t*)((char*)self + 0xAD4);
+    uint32_t ad0 = *(uint32_t*)((char*)self + 0xAD0);
+
+    int* ret = o_carry_frames_42cea6(self);
+
+    // logujemy tylko gdy jednostka cos niesie (ad4 != 0) - inaczej zalew logu
+    if (ad4 == 0) return ret;
+
+    // przy pierwszym niesieniu zrzucamy tabele renderu (budowana po zaladowaniu danych)
+    dump_carry_table_once();
+
+    // deduplikacja: (unit, ad4, atomic, wartosc) - max 96 roznych kombinacji
+    uint32_t atomic_ = *(uint32_t*)((char*)self + 0x0C);
+    uint32_t job     = *(uint32_t*)((char*)self + 0x18);
+    uint16_t v0 = ret ? *(uint16_t*)((char*)ret + 0) : 0xFFFF;
+    uint16_t v1 = ret ? *(uint16_t*)((char*)ret + 2) : 0xFFFF;
+
+    struct Key { void* u; uint32_t ad4, atomic_, job; uint16_t a, b; };
+    static Key seen[96];
+    static int nSeen = 0;
+    Key k = { self, ad4, atomic_, job, v0, v1 };
+    for (int i = 0; i < nSeen; i++) {
+        if (seen[i].u == k.u && seen[i].ad4 == k.ad4 && seen[i].atomic_ == k.atomic_
+            && seen[i].job == k.job && seen[i].a == k.a && seen[i].b == k.b) return ret;
+    }
+    if (nSeen < 96) seen[nSeen++] = k;
+
+    uint32_t base = *(uint32_t*)0x510BF0;
+    clog("[frames] unit=%p job=%u atomic=%u ad0=%u ad4=%u -> ret=%p (base=0x%08X +%u*0x58+0x12) v0=%u v1=%u%s\n",
+         self, job, atomic_, ad0, ad4, ret, base, atomic_, v0, v1,
+         (v0 == 0 && v1 == 0) ? "  <<< PUSTE (brak animacji!)" : "");
+    return ret;
+}
+
+// ============================================================================
+// Detour: FUN_0045D14F - szuka wariantu animacji niesienia (thiscall, 2 arg., ret 8).
+// TYLKO LOG zwrotki: jesli dla wegla zwraca 0, to lookup animacji nie znajduje wpisu.
+// ============================================================================
+static bool __thiscall hook_anim_lookup_45d14f(void* self, short* a, short* b)
+{
+    if (self == nullptr) return o_anim_lookup_45d14f(self, a, b);
+
+    uint32_t ad4 = *(uint32_t*)((char*)self + 0xAD4);
+    short ia = a ? *a : -1, ib = b ? *b : -1;
+
+    bool r = o_anim_lookup_45d14f(self, a, b);
+
+    static int n = 0; n++;
+    static int nCoal = 0;
+    if (ad4 == GOOD_COAL) nCoal++;
+    if ((ad4 == GOOD_COAL && nCoal <= 60) || n <= 40) {
+        clog("[d14f] ad4=%u in=(%d,%d) -> ret=%d%s\n", ad4, ia, ib, (int)r,
+             (ad4 == GOOD_COAL && !r) ? "  <<< WEGIEL: BRAK WARIANTU" : "");
+    }
+    return r;
+}
+
+// ============================================================================
+// Detour: FUN_0045C23E - wlasciwy setup sprite'a niesienia (thiscall, 2 arg., ret 8).
+// TYLKO LOG zwrotki: ret=0 oznacza, ze animacja NIE zostala ustawiona.
+// ============================================================================
+static bool __thiscall hook_anim_setup_45c23e(void* self, short* a, short* b)
+{
+    if (self == nullptr) return o_anim_setup_45c23e(self, a, b);
+
+    uint32_t ad4 = *(uint32_t*)((char*)self + 0xAD4);
+    short ia = a ? *a : -1, ib = b ? *b : -1;
+
+    bool r = o_anim_setup_45c23e(self, a, b);
+
+    static int n = 0; n++;
+    static int nCoal = 0;
+    if (ad4 == GOOD_COAL) nCoal++;
+    if ((ad4 == GOOD_COAL && nCoal <= 60) || n <= 40) {
+        clog("[c23e] ad4=%u in=(%d,%d) -> ret=%d stan368=%u%s\n", ad4, ia, ib, (int)r,
+             *(uint32_t*)((char*)self + 0x368),
+             (ad4 == GOOD_COAL && !r) ? "  <<< WEGIEL: SETUP ODRZUCONY" : "");
+    }
+    return r;
+}
+
+// ============================================================================
+// Jednorazowy zrzut tabeli renderu niesionego dobra (0x512750, stride 0x184).
+// entry+0x00 = flaga "wpis istnieje", entry+0x10 = good.
+// To ta tabela decyduje, czy niesiony przedmiot jest w ogole rysowany.
+// ============================================================================
+static void dump_carry_table_once()
+{
+    static bool done = false;
+    if (done) return;
+    done = true;
+
+    uint32_t base = *(uint32_t*)0x512750;
+    clog("[table] base=0x%08X (0x512750)\n", base);
+    if (base == 0) { clog("[table] BRAK TABLICY\n"); return; }
+
+    for (int t = 0; t < 24; t++) {
+        unsigned char* e = (unsigned char*)(base + (uint32_t)t * 0x184);
+        clog("[table] type %2d: f00=%u f04=%u f08=%u f0C=%u good10=%u\n",
+             t, *(uint32_t*)(e + 0x00), *(uint32_t*)(e + 0x04),
+             *(uint32_t*)(e + 0x08), *(uint32_t*)(e + 0x0C),
+             *(uint32_t*)(e + 0x10));
+    }
+
+    // DIAG: read DAT_00569274 (render context) fields
+    uint32_t rc = *(uint32_t*)0x569274;
+    clog("[diag] DAT_00569274 = 0x%08X\n", rc);
+    if (rc != 0) {
+        clog("[diag] *rc (tribe?) = %u, rc+4 (mode?) = %u, rc+0xe1 = %u\n",
+             *(uint32_t*)rc, *(uint32_t*)(rc+4), *(uint8_t*)(rc+0xe1));
+    }
+
+    // FIX: type 19 (coal pile, landscapetype=19) jest pusty -> niesiony wegiel nie jest rysowany.
+    // Ustawiamy first=1, f04=2, f08=19 (type index), f0C=133 (jak typy 5-16), good10=66 (carried_good dla węgla).
+    unsigned char* e19 = (unsigned char*)(base + 19u * 0x184);
+    if (true) {  // FORCE: always patch type 19 (was skipping due to "juz wypelniony")
+        *(uint32_t*)(e19 + 0x00) = 1;   // first = 1 (wpis istnieje)
+        *(uint32_t*)(e19 + 0x04) = 0;   // f04 = 0 (tribe 0, z diag: *DAT_00569274=0)
+        *(uint32_t*)(e19 + 0x08) = 19;  // f08 = type index (19)
+        *(uint32_t*)(e19 + 0x0C) = 133; // f0C = 133 (jak typy 5-16)
+        *(uint32_t*)(e19 + 0x10) = GOOD_COAL;  // good = 66 (wegiel)
+        clog("[table] FIX type 19 (coal): first=1 f04=2 f08=19 f0C=133 good=66\n");
+    } else {
+        clog("[table] type 19 juz wypelniony (first=%u good=%u)\n",
+             *(uint32_t*)(e19 + 0x00), *(uint32_t*)(e19 + 0x10));
+    }
+}
+static void __thiscall hook_carry_render_42d575(void* self, int param)
+{
+    uint32_t carried = *(uint32_t*)((char*)self + 0xAD0);
+    uint32_t job = *(uint32_t*)((char*)self + U_JOB);
+    uint32_t htype = house_type_of(self);
+    if (carried == GOOD_COAL || job == JOB_SMOLARZ || param == GOOD_COAL) {
+        clog("[carry] unit=%p job=%u htype=%u carried=%u param=%d ad4=%u\n",
+             self, job, htype, carried, param, *(uint32_t*)((char*)self + 0xAD4));
+    }
+    o_carry_render_42d575(self, param);
 }
 
 // Alternatywny tick +0xAB8==0x5A (sasiad 473461) - czy smolarz w ogole tu wchodzi?
@@ -616,7 +1020,7 @@ static int32_t __fastcall hook_set_action(void* self, void* edx, int32_t actionI
     g_nSetAction++;
     int32_t r = o_set_action(self, edx, actionId, param);
     uint32_t job = *(uint32_t*)((char*)self + U_JOB);
-    if (job == JOB_SMOLARZ) {
+    if (job == JOB_SMOLARZ || actionId == 6 || actionId == 0x16 || param == (int32_t)GOOD_COAL) {
         uint32_t jobRecOff = 0x24 + (uint32_t)actionId;
         uint32_t allow = 0xFF;   // 0xFF = actionId poza rekordem joba
         char* jr = job_rec(job);
@@ -662,6 +1066,15 @@ static int32_t __fastcall hook_stock_write(void* self, void* edx, int32_t good, 
     return r;
 }
 
+// Hook: ustawia can_produce[66]=1 po kazdym wywolaniu 0x44a0d9 (dispatcher produkcji)
+static void __fastcall hook_sched_44a0d9(void* self, void* edx)
+{
+    if (o_sched_44a0d9) o_sched_44a0d9(self, edx);
+    if (self) {
+        *(unsigned char*)((char*)self + U_CANPROD + GOOD_COAL) = 1;
+    }
+}
+
 // ============================================================================
 // Instalacja hookow
 // ============================================================================
@@ -694,6 +1107,7 @@ static bool install_hooks()
     ok &= install_one("find_owner(43267F)", VA_FIND_OWNER, (LPVOID)&hook_find_owner, (LPVOID*)&o_find_owner);
     ok &= install_one("stock_add(44B910)",  VA_STOCK_ADD,  (LPVOID)&hook_stock_add,  (LPVOID*)&o_stock_add);
     ok &= install_one("gate 42DA65",        VA_GATE_42DA65,(LPVOID)&hook_gate_42da65,(LPVOID*)&o_gate_42da65);
+    ok &= install_one("sched 44A0D9",       VA_SCHED_44A0D9,(LPVOID)&hook_sched_44a0d9,(LPVOID*)&o_sched_44a0d9);
     ok &= install_one("gate 44B58A",        VA_GATE_44B58A,(LPVOID)&hook_gate_44b58a,(LPVOID*)&o_gate_44b58a);
     ok &= install_one("gate 42C977",        VA_GATE_42C977,(LPVOID)&hook_gate_42c977,(LPVOID*)&o_gate_42c977);
     ok &= install_one("gate 4316F3",        VA_GATE_4316F3,(LPVOID)&hook_gate_4316f3,(LPVOID*)&o_gate_4316f3);
@@ -704,6 +1118,20 @@ static bool install_hooks()
     ok &= install_one("set_action(45C17B)",  VA_SET_ACTION,  (LPVOID)&hook_set_action,  (LPVOID*)&o_set_action);
     ok &= install_one("prod_finish(468BAE)", VA_PROD_FINISH, (LPVOID)&hook_prod_finish, (LPVOID*)&o_prod_finish);
     ok &= install_one("stock_write(431B53)", VA_STOCK_WRITE, (LPVOID)&hook_stock_write, (LPVOID*)&o_stock_write);
+// ---------------------------------------------------------------------------
+// DIAGNOSTYKA ANIMACJI NIESIENIA (2026-10-25) - TYLKO LOG, zero modyfikacji stanu.
+// Wlaczamy WYLACZNIE funkcje o ZWERYFIKOWANEJ sygnaturze (thiscall, 0 arg. stosu):
+//   0x4760BF (pickup) i 0x42CEA6 (para klatek animacji niesienia).
+// NIE hookowac 0x42D575 (1 arg. stosu + `ret` = sprzatanie po stronie wywolujacego)
+// ani 0x46B696 (lezy WEWNATRZ FUN_0046B621) - to powodowalo crash.
+ok &= install_one("pickup(4760BF)",       VA_PICKUP_4760BF, (LPVOID)&hook_pickup_4760bf, (LPVOID*)&o_pickup_4760bf);
+ok &= install_one("carry_frames(42CEA6)", VA_CARRY_FRAMES_42CEA6, (LPVOID)&hook_carry_frames_42cea6, (LPVOID*)&o_carry_frames_42cea6);
+ok &= install_one("anim_lookup(45D14F)",  VA_ANIM_LOOKUP_45D14F, (LPVOID)&hook_anim_lookup_45d14f, (LPVOID*)&o_anim_lookup_45d14f);
+ok &= install_one("anim_setup(45C23E)",   VA_ANIM_SETUP_45C23E,  (LPVOID)&hook_anim_setup_45c23e,  (LPVOID*)&o_anim_setup_45c23e);
+// ok &= install_one("carry_render(42D575)", VA_CARRY_RENDER_42D575, (LPVOID)&hook_carry_render_42d575, (LPVOID*)&o_carry_render_42d575);
+// ok &= install_one("gate_46B696",          VA_GATE_46B696,   (LPVOID)&hook_gate_46b696,   (LPVOID*)nullptr);
+// ok &= install_one("carry_lookup(45C94B)", VA_CARRY_LOOKUP_45C94B, (LPVOID)&hook_carry_lookup_45c94b, (LPVOID*)nullptr);
+// ok &= install_one("action_loop(46B621)", VA_ACTION_LOOP_46B621, (LPVOID)&hook_action_loop_46b621, (LPVOID*)&o_action_loop_46b621);
 
     if (ok) {
         st = MH_EnableHook(MH_ALL_HOOKS);
@@ -726,7 +1154,7 @@ static void shutdown_hooks()
          "[exit] find_owner=%llu (NULL=%llu) stock66: prod#=%llu sum=%lld | zuż#=%llu sum=%lld\n"
          "[exit] bramki: 42DA65=%llu 44B58A=%llu 42C977=%llu 4316F3=%llu 431DDF=%llu tick473618=%llu\n"
          "[exit] Faza1.6: 431CED=%llu 431F37=%llu probki ced(13/14)=%u ced(7-9)=%u ddf(13/14)=%u\n"
-         "[exit] Faza3: set_action=%llu prod_finish=%llu stock_write=%llu\n"
+         "[exit] Faza3: set_action=%llu prod_finish=%llu stock_write=%llu\n[exit] carry_lookup calls=%d actionLoop calls=%d\n"
          "[exit] linii logu=%u\n",
          (unsigned long long)g_nUnitTick, (unsigned long long)g_nDispatcher,
          (unsigned long long)g_nPotter,   (unsigned long long)g_nCase46BDC1,
@@ -740,6 +1168,7 @@ static void shutdown_hooks()
          g_smpCED1314, g_smpCED79, g_smpDDF1314,
          (unsigned long long)g_nSetAction, (unsigned long long)g_nProdFinish,
          (unsigned long long)g_nStockWrite,
+          g_carryLookupCalls,
          g_lines);
 }
 

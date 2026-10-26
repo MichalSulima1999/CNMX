@@ -64,6 +64,7 @@ static const char* __cdecl hook_GetJobString(int job, int plural)
     return r;
 }
 
+/* Hook: ustawia can_produce[66] (wegiel) = 1 po kazdym wywolaniu 0x44a0d9 */
 static void etapc_install_hooks(void)
 {
     BYTE* base = (BYTE*)GetModuleHandleA(NULL);
