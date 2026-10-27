@@ -4,10 +4,19 @@ Data: 2026-10-26
 Cel: znaleźć logikę, która grupuje surowce w magazynie i wyjaśnić, dlaczego
 węgiel (dobro 66) nie pojawia się na liście zapasów.
 
+> **AKTUALIZACJA 2026-10-27 — czytaj razem z
+> [`RE-ANALYSIS-PART90-2026-10-27-CRASH-MAGAZYN.md`](RE-ANALYSIS-PART90-2026-10-27-CRASH-MAGAZYN.md).**
+> Dwie rzeczy z tego dokumentu okazały się błędne:
+> 1. „drugi filtr `iVar7 < 0x38` wewnątrz pętli" **nie istnieje** — to ten sam
+>    `CMP reg,0x37`. Cztery patche `0x38→0x43` trafiały w środek cudzych instrukcji
+>    i powodowały crash `AV: READ @ 0xFFFFFF80`; zostały usunięte.
+> 2. `logicstock 66` dopisane do `Data/logic/houses.ini` **nie działa**, bo gra czyta
+>    `CN.PLMOD/types/houses.ini` (`0x0050055C`). Poprawka jest w pliku runtime.
+
 ## 1. Wnioski w skrócie
 
 1. **Kategorie dóbr** liczy funkcja `FUN_0045cbbe(good)` → 1..5 („kategoria
-   handlowa”). Używa jej okno targu/magazynu `FUN_004c7110`.
+   handlowa”). Użyje jej okno targu/magazynu `FUN_004c7110`.
 2. **Panel budynku (magazynu)** `FUN_004a693b` w zakładkach 5 („zapasy”) i 6
    („szczegóły zapasów”) iteruje **listę `logicstock` danego typu domu**
    (`+0x60` licznik, `+0x64` wpisy po 12 B) i **pomija dobra > 0x37 (55)**.
@@ -18,6 +27,15 @@ węgiel (dobro 66) nie pojawia się na liście zapasów.
 5. Dane: `logicstock 66 150 0` ma **tylko Kwatera Główna** (`logictype 1`).
    Budynki magazynowe `stock 00/01/02` (`logictype 7/8/9`) **nie miały** wpisu
    dla dobra 66.
+
+### 1a. Stan po zastosowaniu patchy (683/683 ok):
+
+- `etapa_gen/patches_ext.h`: +4 patche `0x000A7333`, `0x000A7434`, `0x000A7EF7`,
+  `0x000A7FB3` (`0x37 -> 0x42`) dla panelu budynku/magazynu. Wszystkie patche
+  zostały poprawnie zastosowane (log EtapC: `patches applied: 683/683 ok`).
+- Mimo patchy użytkownik zgłasza, że węgiel nadal nie pojawia się w magazynie
+  (choć w smolarni taki się pojawia po najechaniu). Zobacz sekcję **Możliwe
+  przyczyny dalszych problemów** poniżej.
 
 ## 2. Kategorie dóbr — `FUN_0045cbbe`
 
@@ -55,8 +73,8 @@ niesienia — **nie** ma wpływu na listę magazynu.
 | Element | Rola |
 |---|---|
 | `FUN_0045cbbe(good)` (`0x45cbbe`) | jedyne miejsce w exe, które mapuje numer dobra na numer kategorii (0..5) |
-| `FUN_004e1b04(kategoria)` (`0x4e1b04`) | nazwa kategorii z zasobów tekstowych: grupa `5`, id `0xdc..0xe2` (kategoria 0..6; **6 = „wszystkie”**) |
-| `FUN_004c7110` (+ `0x4c6d91`, `0x4c6e27`) | okno z zakładkami kategorii: `+0x70` = wybrana kategoria, `+0x74` = filtr pojedynczego dobra |
+| `FUN_004e1b04(kategoria)` (`0x4e1b04`) | nazwa kategorii z zasobów tekstowych: grupa 5, id 0xdc..0xe2 (kategoria 6 = „wszystkie”) |
+| `FUN_004c7110` (+ `0x4c6d91`, `0x4c6e27`) | okno z zakładkami kategorii: +0x70 = wybrana kategoria, +0x74 = filtr pojedynczego dobra |
 
 Mapowanie `FUN_0045cbbe` (stan faktyczny z dekompilacji):
 
@@ -74,11 +92,6 @@ Kategoria 0 nie występuje w praktyce (stąd `0` = brak kategorii). Patch
 `0x0005CBF8` (`0x37 -> 0x43`) zmienia tylko tę martwą gałąź, więc nie ma
 wpływu na przydział dóbr do zakładek.
 
-Okno targu otwiera `FUN_004a192c(kategoria, filtr)`; z UI (zdarzenie `0xbd2`)
-wywoływane jest `FUN_004a192c(6, 0xffffffff)`, czyli „wszystkie”. Zakładki
-kategorii obsługuje `FUN_004c6e27` (dźwięki `0x46..0x53`, ikony zależne od
-kategorii) i tam ustawiany jest `+0x70`.
-
 **Ważne rozróżnienie:** panel budynku/magazynu (`FUN_004a693b`) **nie woła**
 `FUN_0045cbbe` — nie ma tam kategorii. Wiersze zakładki „zapasy” idą w kolejności
 wpisów `logicstock` z `houses.ini`. Kategorie widoczne w grze pochodzą z okna
@@ -86,49 +99,22 @@ targu/wymiany (`FUN_004c7110`), nie z panelu magazynu.
 
 ## 4. Panel budynku / magazynu — `FUN_004a693b`
 
-Wywoływany z konstruktora okna budynku `FUN_004a60a2` (razem z `FUN_004a76fd`).
+**Status: PATCH ZASTOSOWANY** — 4 patche EtapC (`0x000A7333`, `0x000A7434`, `0x000A7EF7`, `0x000A7FB3`) zmieniają `CMP reg,0x37` → `CMP reg,0x42` w funkcjach panelu budynku/magazynu. Tabela liczy teraz 683 wpisy. Logi: `patches applied: 683/683 ok`.
 
-Zakładka 5 (zapasy), uproszczone:
+Mimo patchy użytkownik zgłasza, że węgiel nadal nie pojawia się w magazynie
+(choć w smolarni taki się pojawia po najechaniu). Dokumentujemy possible przyczyny dalszych problemów:
 
-```c
-if (*(int*)(house_type + 0x60) != 0) {        // logicstock count
-  p = house_type + 0x6c;                       // wpisy 12 B
-  do {
-    good = *(int*)(p - 8);                     // +0x64
-    if (good <= 0x37) {                        // <-- FILTR (CMP EBX,0x37; JG)
-      ... FUN_00431a83(house, good, isWarehouse);
-      ... FUN_0042f710(good, 1);               // nazwa dobra
-      ... FUN_004b8b04(...);                   // widget wiersza
-    }
-    p += 0xc;
-  } while (idx < *(int*)(house_type + 0x60));
-}
-```
+### Możliwe przyczyny braku węgla w magazynie (po patchach):
 
-Zakładka 6 (szczegóły zapasów) — identyczna pętla, drugi filtr
-`CMP EAX,0x37; JG`.
+1. **Filtrowanie w `FUN_004a76fd`** — to function buduje zawartość zakładek i ma własne filtry `CMP ECX/EAX,0x37`. Choć patchi na adresach `0xA7EF7` i `0xA7FB3` powinny zmienić granicę na 0x42, decompilacja nadal pokazuje `local_28 < 0x38` (oryginalny kod Ghidry przed patchem). **Należy zweryfikować w grze, czy patche rzeczywiście zmieniają zachowanie runtime.**
 
-Wiersze są rysowane sekwencyjnie (brak tablicy indeksowanej numerem dobra),
-więc podniesienie granicy jest bezpieczne.
+2. **Zmienna `local_1c` i typ budynku** — panel `FUN_004a693b` ma różne ścieżki kodu dla `local_1c == 5` (zakładka zapasy) i `local_1c == 6` (zakładka szczegóły). Dla budynków `stock 00/01/02` (logictype 7/8/9) zmienna `local_1c` może być ustawiana inaczej, co powoduje użycie innej gałęzi kodu niż ta, którą patchowaliśmy. Budynek Kwatery Głównej (logictype 1) działa inaczej.
 
-`FUN_004a76fd` (budowa zawartości zakładek) robi to samo dla zakładek 5/6
-(`CMP ECX,0x37` i `CMP EAX,0x37`, oba z `JG`).
+3. **Zmienna `idx` / licznik pętli** — pętla `while (idx < *(int*)(house_type + 0x60))` iteruje `logicstock` count. Jeśli count dla stock buildings nie uwzględnia nowego wpisu `logicstock 66` (bo parser `FUN_0041531d` ma zabezpieczenie `count != 0x42`, licznik stopuje na 66), to węgiel na indeksie > oryginalnego licznika nigdy nie zostanie osiągnięty przez pętlę.
 
-### Adresy filtrów (imm8 `0x37` → `0x42`)
+4. **Ikona dobra 66 w kontekście magazynu** — choć dobre `good_stone` dodano do `goodgraphics.cif`, panel magazynu może używać innego mechanizmu przypisywania ikon niż smolarnia. Może wymagać uzupełnienia tabeli `logicgood` lub inicjalizacji palet inaczej.
 
-| VA instrukcji | imm8 (RVA) | Funkcja / zakładka |
-|---|---|---|
-| `0x4a7331` | `0x000A7333` | `FUN_004a693b` zakładka 5 |
-| `0x4a7432` | `0x000A7434` | `FUN_004a693b` zakładka 6 |
-| `0x4a7ef5` | `0x000A7EF7` | `FUN_004a76fd` zakładka 5 |
-| `0x4a7fb1` | `0x000A7FB3` | `FUN_004a76fd` zakładka 6 |
-| `0x4c742f` | `0x000C7431` | `FUN_004c7110` pętla 1 (targ) |
-| `0x4c74cb` | `0x000C74CD` | `FUN_004c7110` pętla 2 (targ) |
-| `0x4c7543` | `0x000C7545` | `FUN_004c7110` pętla 3 (targ) |
-
-`CMP reg,0x37` + `JBE/JG` znaczy „przepuść dobro `<= 0x37`”. Wartość `0x42`
-(66) przepuszcza dobro 66, a odrzuca 67 (tar, poza zakresem walidatora
-`< 0x43`).
+5. **Flaga dostępności `+0x1e0`** — to jest problem okna targu (`FUN_004c7110`), ale warto sprawdzić, czy magazyn nie używa podobnej flagi w innej lokalizacji.
 
 ## 5. Dane — `logicstock` w `houses.ini`
 
@@ -187,29 +173,37 @@ rozszerzyć tablicę `+0x1e0` i pętle ją wypełniające. To osobny krok.
 
 - `etapa_gen/patches_ext.h`: +4 patche `0x000A7333`, `0x000A7434`,
   `0x000A7EF7`, `0x000A7FB3` (`0x37 -> 0x42`) dla panelu budynku/magazynu.
-  Tabela liczy teraz **683** wpisy.
+  Tabela liczy teraz **683** wpisy (było 679).
 - `Data/logic/houses.ini`: `logicstock 66` dla `stock 00/01/02` (+ backup).
 - `EtapC.dll`: przebudowany i skopiowany do roota (gra była zamknięta);
-  binarka zawiera nowe opisy patchy (sprawdzone `strings`).
+  w logach: `patches applied: 683/683 ok`.
 
 ## 9. Jak zweryfikować
 
 1. Uruchom grę przez `modlauncher.exe`.
-2. `logs/etapc.log` → `patches applied: 683/683 ok` (było 679).
+2. `logs/etapc.log` → `patches applied: 683/683 ok`.
 3. Otwórz panel Kwatery Głównej lub budynku `stock 0x` → zakładka zapasów
    powinna pokazać „Węgiel” (ikona `good_stone` z `goodgraphics.cif`).
 4. Postaw chatę smolarza, wyprodukuj węgiel, zanieś do magazynu — pozycja
    „Węgiel” powinna mieć stan > 0.
 
+Jeśli węgiel nadal nie pojawia się w magazynie, patrz sekcję **Możliwe przyczyny
+braku węgla w magazynie (po patchach)** wyżej.
+
 ## 10. Pliki źródłowe analizy
 
-- `.ai/re_out_batch10/functions/0x4a693b.c` — panel budynku (zakładki 5/6)
-- `.ai/re_out_batch10/functions/0x4a76fd.c` — zawartość zakładek
-- `.ai/re_out_batch10/functions/0x4a60a2.c` — konstruktor okna budynku
-- `.ai/re_out_batch10/functions/0x4a192c.c` — otwarcie okna targu (`FUN_004a192c`)
-- `.ai/re_out_batch6/functions/0x4c7110.c` — lista targu/magazynu
-- `.ai/re_out_batch6/functions/0x4c6d91.c`, `0x4c6e27.c`, `0x4c70cc.c` — okno targu
-- `.ai/re_out_batch21/functions/0x45cbbe.c` — kategorie dóbr
-- `.ai/re_out_batch13/functions/0x4e1b04.c` — nazwy kategorii (zasoby `0xdc..0xe2`)
-- `.ai/re_out_batch19/functions/0x41531d.c` — parser `logicstock`
-- `.ai/re_out_batch19/functions/0x415e8a.c` — inicjalizacja palet ikon (0..55)
+- `.ai/docs/re/RE-ANALYSIS-PART89-2026-10-26.md` — pełna analiza partia 89.
+- `.ai/re_out_batch10/functions/0x4a693b.c`, `0x4a76fd.c`, `0x4a60a2.c`.
+- `.ai/re_out_batch6/functions/0x4c7110.c`, `0x4c6d91.c`, `0x4c6e27.c`,
+  `0x4c70cc.c`.
+- `.ai/re_out_batch21/functions/0x45cbbe.c`.
+- `.ai/re_out_batch13/functions/0x4e1b04.c`.
+- `.ai/re_out_batch19/functions/0x41531d.c`, `0x415e8a.c`.
+- `etapa_gen/patches_ext.h` (nowe patche na końcu listy).
+
+## 11. Stan commitu
+
+Zmiany niezacommitowane: `etapa_gen/patches_ext.h`, `Data/logic/houses.ini`
+(pozagit), `EtapC.dll` (pozagitu), `.ai/docs/re/RE-ANALYSIS-PART89-…`,
+`.ai/docs/HANDOFF-2026-10-26-MAGAZYN-KATEGORIE.md`, `.ai/docs/INDEX.md`,
+`.ai/tmp/...` (artefakty skryptów).

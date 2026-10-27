@@ -854,7 +854,14 @@ static const Patch PATCHES[] = {
        logicstock budynku (+0x60 count, +0x64 wpisy 12 B) i pomijaja dobra > 0x37.
        W binarce to `CMP reg,0x37` (83 /r 37) + JBE/JG. Zmiana imm8 0x37->0x42
        (<=66) wpuszcza dobro 66 (wegiel). Wczesniej filtr obcinal wszystko >=56,
-       dlatego logicstock 66 w Kwaterze Glownej nie byl rysowany. */
+       dlatego logicstock 66 w Kwaterze Glownej nie byl rysowany.
+
+       UWAGA (2026-10-27): to SA JEDYNE cztery filtry. Dekompilator pokazywal
+       ten sam test jako `if (iVar7 < 0x38)` wewnatrz petli - nie ma drugiego
+       filtra. Probne "wewnetrzne" patche 0x000A8022 / 0x000A80FC / 0x000A81FA /
+       0x000A82C6 trafialy w srodek cudzych instrukcji (0x000A82C6 to bajt ModRM
+       `MOV EBX,ECX` na poczatku funkcji 0x000A82BC) i powodowaly crash
+       `AV: READ @ 0xFFFFFF80` przy kliknieciu budynku. NIE PRZYWRACAC. */
     { 0x000A7333, 0, 1, { 0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, "MAGAZYN FUN_004a693b zakladka 5 (zapasy): filtr dobra <=0x37 -> <=0x42 (wegiel 66)" },
     { 0x000A7434, 0, 1, { 0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, "MAGAZYN FUN_004a693b zakladka 6 (szczegoly zapasow): filtr dobra <=0x37 -> <=0x42 (wegiel 66)" },
     { 0x000A7EF7, 0, 1, { 0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, "MAGAZYN FUN_004a76fd zakladka 5: filtr logicstock <=0x37 -> <=0x42 (wegiel 66)" },
