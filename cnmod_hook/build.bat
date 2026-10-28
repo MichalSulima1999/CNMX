@@ -25,7 +25,7 @@ echo == MinHook (C) ==
 if errorlevel 1 (echo BLAD MinHook & exit /b 1)
 
 echo == cnmod_hook (C++) ==
-"%TOOL%\g++.exe" -O2 -c "%SRC%\main.cpp" -o "%OUT%\main.o" -I"%MH%\include" -Iinclude -DCNMOD_HOOK_EXPORTS
+"%TOOL%\g++.exe" -O2 -std=c++17 -c "%SRC%\main.cpp" -o "%OUT%\main.o" -I"%MH%\include" -Iinclude -DCNMOD_HOOK_EXPORTS
 if errorlevel 1 (echo BLAD cnmod_hook & exit /b 1)
 
 echo == link DLL ==

@@ -22,6 +22,8 @@
 #include <cstdio>
 #include <cstdarg>
 #include <cstring>
+#include <string>
+#include <unordered_map>
 #include <MinHook.h>
 #include "cnmod_hook.h"
 
@@ -82,6 +84,8 @@ static const uintptr_t VA_GATE_431F37 = 0x431F37;  // revmap dobro->slot; arg = 
 static const uintptr_t VA_SET_ACTION   = 0x45C17B;
 static const uintptr_t VA_PROD_FINISH  = 0x468BAE;
 static const uintptr_t VA_STOCK_WRITE  = 0x431B53;
+static const uintptr_t VA_CATEGORIZE   = 0x45CBBE;   // kategoryzacja dobra (FUN_0045CBBE)
+static const uintptr_t VA_CATBUILD     = 0x4A82BB;   // budowa listy goods dla kategorii (FUN_004a82bb)
 static const uintptr_t VA_CARRY_RENDER_42D575 = 0x42D575;
 static const uintptr_t VA_PICKUP_4760BF = 0x4760BF;   // inicjacja niesienia dobra
 static const uintptr_t VA_CARRY_FRAMES_42CEA6 = 0x42CEA6; // para klatek animacji niesienia (thiscall, 0 arg.)
@@ -90,6 +94,17 @@ static const uintptr_t VA_ANIM_SETUP_45C23E  = 0x45C23E; // setup sprite'a niesi
 static const uintptr_t VA_GATE_46B696 = 0x46B696;     // brama do carry render (if [unit+0xAD4]==0 call 0x42D575)
 static const uintptr_t VA_CARRY_LOOKUP_45C94B = 0x45C94B; // lookup carry animation slot
 static const uintptr_t VA_ACTION_LOOP_46B621 = 0x46B621;   // main action loop (FUN_0046b621)
+
+// Diagnostyka wczytywania zapisu (2026-10-28) - TYLKO LOG (osobny plik cnmod_diag.log)
+static const uintptr_t VA_WORLD_INIT      = 0x40704B; // cdecl(short,short,char,void*,uchar) - tworzy wszystkie singletony
+static const uintptr_t VA_WORLD_CLEANUP   = 0x407291; // cdecl() - niszczy wszystkie singletony
+static const uintptr_t VA_GSMX_NEW        = 0x4190AE; // thiscall() -> twórca singletona gsmx (0x740 B)
+static const uintptr_t VA_GSMX_LOAD       = 0x41912C; // thiscall(reader) ret 4 -> load-constructor gsmx
+static const uintptr_t VA_SAVE_LOADER     = 0x425EC5; // cdecl(reader, uchar) - loader zapisu (petla chunkow)
+static const uintptr_t VA_CHUNK_READ      = 0x42A28D; // thiscall(reader) -> naglowek "hoix"+class id
+static const uintptr_t VA_DRAW_BUILDING   = 0x4B74C8; // thiscall(a,b) ret 8 - rysowanie budynku (uzywa gsmx)
+static const uintptr_t VA_DAT_WORLD_FLAG  = 0x5109F0; // byte: 1 = swiat zainicjowany
+static const uintptr_t VA_DAT_GSMX        = 0x5116D4; // ptr: singleton gsmx
 
 // Globals gry
 static const uintptr_t VA_PBUILDINGS   = 0x510BD0;  // [0x510BD0] = wsk. na tablice instancji budynkow
@@ -171,6 +186,8 @@ static bool       g_tablePatched = false;
 static int        g_carryLookupCalls = 0;
 static int        g_actionLoopCalls = 0;
 
+// --- Kategoria dobra (ini-configurable) ---------------------------------------
+
 static bool ucache_get(void* u, UnitCache** out)
 {
     for (uint32_t i = 0; i < g_ucacheN; i++)
@@ -216,7 +233,9 @@ typedef int32_t (__fastcall *FnGateBG1) (void* self, void* edx, int32_t good);  
 typedef int32_t (__fastcall *FnGateList)(void* self, void* edx, int32_t good);              // 42DB20
 typedef int32_t (__fastcall *FnSetAction)(void* self, void* edx, int32_t actionId, int32_t param); // 45C17B
 typedef int32_t (__fastcall *FnStockWrite)(void* self, void* edx, int32_t good, int32_t amount,
-                                           int32_t frac, int32_t flag);                     // 431B53
+                                            int32_t frac, int32_t flag);                     // 431B53
+typedef int (__cdecl *FnCategorize)(int good);
+typedef void (__fastcall *FnCatBuild)(void* self, void* edx);
 
 static FnUnitTick  o_unit_tick  = nullptr;
 static FnUnit0     o_dispatcher = nullptr;
@@ -253,6 +272,8 @@ static void(__thiscall* o_action_loop_46b621)(void*, int) = nullptr;
 static void dump_carry_table_once();
 static FnUnit0     o_prod_finish = nullptr;   // Faza 3
 static FnStockWrite o_stock_write = nullptr;  // Faza 3
+static FnCategorize o_categorize = nullptr;   // kategoryzacja dobra
+static FnCatBuild   o_catbuild   = nullptr;   // budowa listy goods dla kategorii
 
 // ============================================================================
 // Detour: FUN_00473461 - unit tick (logowanie na wejsciu)
@@ -593,6 +614,44 @@ static int32_t __fastcall hook_gate_431ced(void* self, void* edx, int32_t slot)
 //   piekarnia      (ht 13): slot1 -> good 11  -> blokuje
 static int32_t __fastcall hook_gate_431f37(void* self, void* edx, int32_t good)
 {
+    // Dobra >= 66 (węgiel i nowe surowce) leżą poza revmap[] (66 wpisów, 0..65).
+    // Skanujemy logicstock budynku uniwersalnie, zamiast czytać poza tablicą.
+    if (good >= (int32_t)GOOD_COAL) {
+        g_nG431F37++;
+        uint32_t htype = *(uint32_t*)((char*)self + B_HOUSETYPE);
+        char* rec = house_rec(htype);
+        if (rec) {
+            uint32_t cnt = *(uint32_t*)(rec + OFF_STOCK_LIST);
+            for (uint32_t i = 0; i < cnt; i++) {
+                if (*(int32_t*)(rec + OFF_STOCK_LIST + 4 + (size_t)i * STOCK_ENTRY_SIZE) == good) {
+                    clog("[g431F37] universal: bldg=%p htype=%u good=%d -> slot=%u\n", self, htype, good, i);
+                    return (int32_t)i;
+                }
+            }
+        }
+        clog("[g431F37] universal: bldg=%p htype=%u good=%d -> NOT FOUND\n", self, htype, good);
+        return -1;
+    }
+
+    // Dobra >= 66 (węgiel i nowe surowce) leżą poza revmap[] (66 wpisów, 0..65).
+    // Skanujemy logicstock budynku uniwersalnie, zamiast czytać poza tablicą.
+    if (good >= (int32_t)GOOD_COAL) {
+        g_nG431F37++;
+        uint32_t htype = *(uint32_t*)((char*)self + B_HOUSETYPE);
+        char* rec = house_rec(htype);
+        if (rec) {
+            uint32_t cnt = *(uint32_t*)(rec + OFF_STOCK_LIST);
+            for (uint32_t i = 0; i < cnt; i++) {
+                if (*(int32_t*)(rec + OFF_STOCK_LIST + 4 + (size_t)i * STOCK_ENTRY_SIZE) == good) {
+                    clog("[g431F37] universal: bldg=%p htype=%u good=%d -> slot=%u\n", self, htype, good, i);
+                    return (int32_t)i;
+                }
+            }
+        }
+        clog("[g431F37] universal: bldg=%p htype=%u good=%d -> NOT FOUND\n", self, htype, good);
+        return -1;
+    }
+
     int32_t r = o_gate_431f37(self, edx, good);
     g_nG431F37++;
 
@@ -1066,6 +1125,77 @@ static int32_t __fastcall hook_stock_write(void* self, void* edx, int32_t good, 
     return r;
 }
 
+// ============================================================================
+// Hook: kategoryzacja dobra (FUN_0045CBBE) - passthrough (kategoria wynika z grup w FUN_004a82bb)
+static int __cdecl hook_categorize(int good)
+{
+    return o_categorize(good);
+}
+
+// ============================================================================
+// Globalna mapa good->kategoria z INI
+static std::unordered_map<uint32_t,uint32_t> g_goodCategoryMap;
+static bool g_catIniLoaded = false;
+
+static void LoadGoodCategoriesIni()
+{
+    const char* path = "CN.PLMOD\\types\\goodcategories.ini";
+    FILE* f = fopen(path, "r");
+    if (!f) { clog("[cat] Nie mozna wczytac %s\n", path); return; }
+    char line[256];
+    bool inSec = false;
+    while (fgets(line, sizeof(line), f)) {
+        // trim
+        char* p = line;
+        while (*p==' '||*p=='\t') p++;
+        if (*p=='[') {
+            if (strncmp(p, "[goodcategories]", 16)==0) inSec=true; else inSec=false;
+            continue;
+        }
+        if (!inSec) continue;
+        if (*p=='\0'||*p==';'||*p=='#'||*p=='\n'||*p=='\r') continue;
+        char* eq = strchr(p, '=');
+        if (!eq) continue;
+        *eq = '\0';
+        uint32_t good = (uint32_t)atoi(p);
+        uint32_t cat = (uint32_t)atoi(eq+1);
+        if (cat <= 6) {
+            g_goodCategoryMap[good] = cat;
+            clog("[cat] INI: good=%u -> kategoria %u\n", good, cat);
+        }
+    }
+    fclose(f);
+    g_catIniLoaded = true;
+    clog("[cat] Wczytano %u wpisow z %s\n", (uint32_t)g_goodCategoryMap.size(), path);
+}
+
+// Hook: budowa listy goods dla kategorii (FUN_004a82bb) - dynamicznie z INI
+static void __fastcall hook_catbuild(void* self, void* edx)
+{
+    o_catbuild(self, edx);
+    if (!g_catIniLoaded) return;
+    for (auto& kv : g_goodCategoryMap) {
+        uint32_t good = kv.first;
+        uint32_t cat = kv.second;
+        if (cat > 6) continue;
+        int base = 0x180 + (int)cat * 0x38;
+        int* slots = (int*)((char*)self + base);
+        bool found = false;
+        for (int i = 0; i < 14; i++) {
+            if (slots[i] == (int)good) { found = true; break; }
+        }
+        if (found) continue;
+        for (int i = 0; i < 14; i++) {
+            if (slots[i] == 0) {
+                slots[i] = (int)good;
+                clog("[catbuild] added good %u to category %u slot %d\n", good, cat, i);
+                break;
+            }
+        }
+    }
+}
+
+// ============================================================================
 // Hook: ustawia can_produce[66]=1 po kazdym wywolaniu 0x44a0d9 (dispatcher produkcji)
 static void __fastcall hook_sched_44a0d9(void* self, void* edx)
 {
@@ -1073,6 +1203,194 @@ static void __fastcall hook_sched_44a0d9(void* self, void* edx)
     if (self) {
         *(unsigned char*)((char*)self + U_CANPROD + GOOD_COAL) = 1;
     }
+}
+
+// ============================================================================
+// DIAGNOSTYKA WCZYTANIA ZAPISU (2026-10-28)
+//
+// Cel: ustalic, DLACZEGO singleton gsmx (DAT_005116d4) jest NULL w chwili
+// rysowania budynku (crash EIP=0x4B7574, AV READ @ 0).
+// Hipotezy do rozstrzygniecia:
+//   H1: FUN_0040704b (INIT) nie zostal wywolany po ostatnim FUN_00407291 (CLEANUP)
+//   H2: INIT byl, ale operator_new(0x740) zwrocil NULL (brak pamieci)
+//   H3: loader zapisu (FUN_00425ec5) nie doszedl do chunku "gsmx"
+//   H4: ktos wywoluje CLEANUP w trakcie gry (poza sciezka loadera)
+//
+// Zapis WYLACZNIE do logs\cnmod_diag.log (maly, czyszczony przy starcie procesu).
+// Zero modyfikacji stanu gry poza jednym wyjatkiem: hook_draw_building pomija
+// rysowanie budynku, gdy gsmx == NULL - tylko po to, by nie tracic przebiegu.
+// ============================================================================
+
+static FILE* g_diag = nullptr;
+static uint64_t g_nDiagDrawSkip = 0;
+static uint64_t g_nDiagChunk = 0;
+
+static void dlog(const char* fmt, ...)
+{
+    if (!g_diag) return;
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(g_diag, fmt, ap);
+    va_end(ap);
+    fflush(g_diag);
+}
+
+static void diag_open()
+{
+    if (g_diag) return;
+    g_diag = fopen("logs\\cnmod_diag.log", "w");
+    if (g_diag) {
+        dlog("[diag] ===== start PID=%lu tick=%llu =====\n",
+             (unsigned long)GetCurrentProcessId(),
+             (unsigned long long)GetTickCount64());
+    }
+}
+
+static void diag_close()
+{
+    if (!g_diag) return;
+    dlog("[diag] ===== koniec tick=%llu (pominiete rysowania=%llu, chunki=%llu) =====\n",
+         (unsigned long long)GetTickCount64(),
+         (unsigned long long)g_nDiagDrawSkip, (unsigned long long)g_nDiagChunk);
+    fclose(g_diag);
+    g_diag = nullptr;
+}
+
+// 0x40704B - globalna inicjalizacja swiata (tworzy m.in. gsmx)
+typedef void (__cdecl *FnWorldInit)(short, short, char, void*, unsigned char);
+static FnWorldInit o_world_init = nullptr;
+
+static void __cdecl hook_world_init(short w, short h, char p3, void* p4, unsigned char p5)
+{
+    void* ra = __builtin_return_address(0);
+    void* gsmx_before = *(void**)VA_DAT_GSMX;
+    unsigned char flag = *(unsigned char*)VA_DAT_WORLD_FLAG;
+    dlog("[world] INIT wejscie ra=%p args=(%d,%d,%d,%p,%u) flag=%u gsmx=%p\n",
+         ra, (int)w, (int)h, (int)p3, p4, (unsigned)p5, (unsigned)flag, gsmx_before);
+    if (o_world_init) o_world_init(w, h, p3, p4, p5);
+    dlog("[world] INIT wyjscie flag=%u gsmx=%p\n",
+         (unsigned)*(unsigned char*)VA_DAT_WORLD_FLAG, *(void**)VA_DAT_GSMX);
+}
+
+// 0x407291 - cleanup swiata (niszczy m.in. gsmx); logujemy KTO wola
+typedef void (__cdecl *FnWorldCleanup)();
+static FnWorldCleanup o_world_cleanup = nullptr;
+
+static void __cdecl hook_world_cleanup()
+{
+    void* ra = __builtin_return_address(0);
+    dlog("[world] CLEANUP wejscie ra=%p flag=%u gsmx=%p\n",
+         ra, (unsigned)*(unsigned char*)VA_DAT_WORLD_FLAG, *(void**)VA_DAT_GSMX);
+    if (o_world_cleanup) o_world_cleanup();
+    dlog("[world] CLEANUP wyjscie flag=%u gsmx=%p\n",
+         (unsigned)*(unsigned char*)VA_DAT_WORLD_FLAG, *(void**)VA_DAT_GSMX);
+}
+
+// 0x4190AE - tworzenie singletona gsmx (thiscall: ECX = this)
+typedef void* (__fastcall *FnGsmxNew)(void*, void*);
+static FnGsmxNew o_gsmx_new = nullptr;
+
+static void* __fastcall hook_gsmx_new(void* self, void* edx)
+{
+    void* r = o_gsmx_new ? o_gsmx_new(self, edx) : nullptr;
+    dlog("[gsmx] NEW self=%p ret=%p -> DAT=%p\n", self, r, *(void**)VA_DAT_GSMX);
+    return r;
+}
+
+// 0x41912C - load-constructor gsmx z zapisu (thiscall, 1 arg. stosu, ret 4)
+typedef void* (__fastcall *FnGsmxLoad)(void*, void*, void*);
+static FnGsmxLoad o_gsmx_load = nullptr;
+
+static void* __fastcall hook_gsmx_load(void* self, void* edx, void* reader)
+{
+    int mode = reader ? *(int*)((char*)reader + 0x10) : -1;
+    dlog("[gsmx] LOAD wejscie self=%p reader=%p tryb(param_1[4])=%d\n", self, reader, mode);
+    void* r = o_gsmx_load ? o_gsmx_load(self, edx, reader) : nullptr;
+    dlog("[gsmx] LOAD wyjscie DAT=%p\n", *(void**)VA_DAT_GSMX);
+    return r;
+}
+
+// 0x425EC5 - loader zapisu: cdecl(reader, uchar)
+// Naprawa przyczyny crashu ladowania zapisu:
+//   loader wywoluje FUN_00407291() (cleanup) na starcie, niszczac wszystkie singletony
+//   (gsmx, DAT_005116E4 i inne). Niektóre zapisy nie zawieraja chunkow odtwarzajacych
+//   te singletony, wiec po loadzie sa NULL i gra crashuje przy renderowaniu.
+// Rozwiazanie: po zakonczeniu loadera, jesli kluczowe singletony sa NULL,
+// tymczasowo zerujemy flague swiata i wywolujemy FUN_0040704b (tworzy wszystkie
+// singletony od nowa, bez ponownego cleanup).
+typedef void (__cdecl *FnSaveLoader)(int*, unsigned char);
+static FnSaveLoader o_save_loader = nullptr;
+
+static void __cdecl hook_save_loader(int* reader, unsigned char mode)
+{
+    void* ra = __builtin_return_address(0);
+    dlog("[load] START reader=%p mode=%u ra=%p flag=%u gsmx=%p\n",
+         reader, (unsigned)mode, ra,
+         (unsigned)*(unsigned char*)VA_DAT_WORLD_FLAG, *(void**)VA_DAT_GSMX);
+    if (o_save_loader) o_save_loader(reader, mode);
+    // --- naprawa przyczyny: odtworz singletony zniszczone przez cleanup w loaderze ---
+    unsigned char flag = *(unsigned char*)VA_DAT_WORLD_FLAG;
+    void* gsmx = *(void**)VA_DAT_GSMX;
+    void* dat_e4 = *(void**)0x005116E4;
+    dlog("[load] END flag=%u gsmx=%p dat_e4=%p\n", flag, gsmx, dat_e4);
+    if (flag == 1 && (gsmx == nullptr || dat_e4 == nullptr)) {
+        // Tymczasowo zeruj flage, zeby FUN_0040704b pominiel galez z cleanup
+        unsigned char* flag_ptr = (unsigned char*)VA_DAT_WORLD_FLAG;
+        *flag_ptr = 0;
+        typedef void (__cdecl *FnWorldInit)(short, short, char, void*, unsigned char);
+        static FnWorldInit p_world_init = (FnWorldInit)0x0040704B;
+        dlog("[load] REPAIR wywoluje FUN_0040704b (gsmx=%p, dat_e4=%p)\n", gsmx, dat_e4);
+        p_world_init(250, 250, 0, nullptr, 0);
+        dlog("[load] REPAIR po FUN_0040704b: gsmx=%p, dat_e4=%p, flag=%u\n",
+             *(void**)VA_DAT_GSMX, *(void**)0x005116E4, (unsigned)*flag_ptr);
+    }
+}
+
+// 0x42A28D - odczyt naglowka kolejnego chunku ("hoix" + 4-znakowy class id)
+// thiscall(reader) -> bool; [reader+0x0C] = class id po odczycie
+typedef unsigned char (__fastcall *FnChunkRead)(void*, void*);
+static FnChunkRead o_chunk_read = nullptr;
+
+static unsigned char __fastcall hook_chunk_read(void* self, void* edx)
+{
+    unsigned char r = o_chunk_read ? o_chunk_read(self, edx) : 0;
+    if (r && self) {
+        unsigned int cls = *(unsigned int*)((char*)self + 0x0C);
+        char tag[5];
+        tag[0] = (char)(cls & 0xFF);
+        tag[1] = (char)((cls >> 8) & 0xFF);
+        tag[2] = (char)((cls >> 16) & 0xFF);
+        tag[3] = (char)((cls >> 24) & 0xFF);
+        tag[4] = 0;
+        bool printable = true;
+        for (int i = 0; i < 4; ++i) {
+            unsigned char c = (unsigned char)tag[i];
+            if (c < 0x20 || c > 0x7E) printable = false;
+        }
+        dlog("[load] chunk #%llu class=0x%08X (%s) off=0x%X\n",
+             (unsigned long long)++g_nDiagChunk, cls,
+             printable ? tag : "????", (unsigned)*(unsigned int*)((char*)self + 0x28));
+    }
+    return r;
+}
+
+// 0x4B74C8 - rysowanie budynku (thiscall 2 arg., ret 8); uzywa gsmx bez null-checku.
+// Zabezpieczenie diagnostyczne: gdy gsmx == NULL -> pomijamy rysowanie (bez crashu).
+typedef void (__fastcall *FnDrawBuilding)(void*, void*, void*, void*);
+static FnDrawBuilding o_draw_building = nullptr;
+
+static void __fastcall hook_draw_building(void* self, void* edx, void* a, void* b)
+{
+    void* gsmx = *(void**)VA_DAT_GSMX;
+    if (!gsmx) {
+        ++g_nDiagDrawSkip;
+        if (g_nDiagDrawSkip <= 40) {
+            dlog("[draw] POMINIETE 4B74C8 self=%p a=%p b=%p: gsmx=NULL (skip #%llu)\n",
+                 self, a, b, (unsigned long long)g_nDiagDrawSkip);
+        }
+        return;
+    }
+    if (o_draw_building) o_draw_building(self, edx, a, b);
 }
 
 // ============================================================================
@@ -1100,6 +1418,10 @@ static bool install_hooks()
         return false;
     }
     bool ok = true;
+
+    // Wczytaj mapping kategorii dobra z INI (przed instalacją hooków)
+    LoadGoodCategoriesIni();
+
     ok &= install_one("unit_tick(473461)",  VA_UNIT_TICK,  (LPVOID)&hook_unit_tick,  (LPVOID*)&o_unit_tick);
     ok &= install_one("dispatcher(46BAD7)", VA_DISPATCHER, (LPVOID)&hook_dispatcher, (LPVOID*)&o_dispatcher);
     ok &= install_one("potter(46D53A)",     VA_POTTER,     (LPVOID)&hook_potter,     (LPVOID*)&o_potter);
@@ -1118,7 +1440,17 @@ static bool install_hooks()
     ok &= install_one("set_action(45C17B)",  VA_SET_ACTION,  (LPVOID)&hook_set_action,  (LPVOID*)&o_set_action);
     ok &= install_one("prod_finish(468BAE)", VA_PROD_FINISH, (LPVOID)&hook_prod_finish, (LPVOID*)&o_prod_finish);
     ok &= install_one("stock_write(431B53)", VA_STOCK_WRITE, (LPVOID)&hook_stock_write, (LPVOID*)&o_stock_write);
-// ---------------------------------------------------------------------------
+ok &= install_one("categorize(45CBBE)", VA_CATEGORIZE, (LPVOID)&hook_categorize, (LPVOID*)&o_categorize);
+ok &= install_one("catbuild(4A82BB)", VA_CATBUILD, (LPVOID)&hook_catbuild, (LPVOID*)&o_catbuild);
+// ------ diagnostyka wczytywania zapisu (osobny plik logs\\cnmod_diag.log) ------
+ok &= install_one("world_init(40704B)", VA_WORLD_INIT,   (LPVOID)&hook_world_init,   (LPVOID*)&o_world_init);
+ok &= install_one("world_cleanup(407291)", VA_WORLD_CLEANUP, (LPVOID)&hook_world_cleanup, (LPVOID*)&o_world_cleanup);
+ok &= install_one("gsmx_new(4190AE)",   VA_GSMX_NEW,   (LPVOID)&hook_gsmx_new,   (LPVOID*)&o_gsmx_new);
+ok &= install_one("gsmx_load(41912C)",  VA_GSMX_LOAD,  (LPVOID)&hook_gsmx_load,  (LPVOID*)&o_gsmx_load);
+ok &= install_one("save_loader(425EC5)",VA_SAVE_LOADER,(LPVOID)&hook_save_loader,(LPVOID*)&o_save_loader);
+ok &= install_one("chunk_read(42A28D)", VA_CHUNK_READ, (LPVOID)&hook_chunk_read, (LPVOID*)&o_chunk_read);
+ok &= install_one("draw_building(4B74C8)", VA_DRAW_BUILDING,(LPVOID)&hook_draw_building,(LPVOID*)&o_draw_building);
+// ------ koniec diagnostyki ------
 // DIAGNOSTYKA ANIMACJI NIESIENIA (2026-10-25) - TYLKO LOG, zero modyfikacji stanu.
 // Wlaczamy WYLACZNIE funkcje o ZWERYFIKOWANEJ sygnaturze (thiscall, 0 arg. stosu):
 //   0x4760BF (pickup) i 0x42CEA6 (para klatek animacji niesienia).
@@ -1218,10 +1550,14 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
             clog("[cnmod] process base=0x%X\n", (unsigned)(uintptr_t)GetModuleHandleA(nullptr));
         }
         g_installed = install_hooks();
+        if (g_installed) {
+            diag_open();
+        }
         break;
     }
     case DLL_PROCESS_DETACH:
         shutdown_hooks();
+        diag_close();
         if (g_log) { fclose(g_log); g_log = nullptr; }
         break;
     }
