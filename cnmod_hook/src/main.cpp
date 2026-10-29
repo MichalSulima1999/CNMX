@@ -86,6 +86,7 @@ static const uintptr_t VA_PROD_FINISH  = 0x468BAE;
 static const uintptr_t VA_STOCK_WRITE  = 0x431B53;
 static const uintptr_t VA_CATEGORIZE   = 0x45CBBE;   // kategoryzacja dobra (FUN_0045CBBE)
 static const uintptr_t VA_CATBUILD     = 0x4A82BB;   // budowa listy goods dla kategorii (FUN_004a82bb)
+static const uintptr_t VA_0x419587_QTY = 0x419587;   // FUN_00419587: good active? (rec[+4]!=0 || rec[+0xc]!=0)
 static const uintptr_t VA_CARRY_RENDER_42D575 = 0x42D575;
 static const uintptr_t VA_PICKUP_4760BF = 0x4760BF;   // inicjacja niesienia dobra
 static const uintptr_t VA_CARRY_FRAMES_42CEA6 = 0x42CEA6; // para klatek animacji niesienia (thiscall, 0 arg.)
@@ -236,6 +237,7 @@ typedef int32_t (__fastcall *FnStockWrite)(void* self, void* edx, int32_t good, 
                                             int32_t frac, int32_t flag);                     // 431B53
 typedef int (__cdecl *FnCategorize)(int good);
 typedef void (__fastcall *FnCatBuild)(void* self, void* edx);
+typedef uint32_t (__fastcall *Fn0x419587)(void* self, void* edx, int good);
 
 static FnUnitTick  o_unit_tick  = nullptr;
 static FnUnit0     o_dispatcher = nullptr;
@@ -274,6 +276,7 @@ static FnUnit0     o_prod_finish = nullptr;   // Faza 3
 static FnStockWrite o_stock_write = nullptr;  // Faza 3
 static FnCategorize o_categorize = nullptr;   // kategoryzacja dobra
 static FnCatBuild   o_catbuild   = nullptr;   // budowa listy goods dla kategorii
+static Fn0x419587   o_0x419587_qty = nullptr; // FUN_00419587 oryginalny
 
 // ============================================================================
 // Detour: FUN_00473461 - unit tick (logowanie na wejsciu)
@@ -1133,6 +1136,24 @@ static int __cdecl hook_categorize(int good)
 }
 
 // ============================================================================
+// Hook: FUN_00419587 (0x419587) - wymagaj qty > 0 w panelu HQ max surowce
+//
+// Oryginał zwraca 1 jesli rec[good*0x14+4]!=0 LUB rec[good*0x14+0xc]!=0.
+// W panelu HQ (zakladka "max surowce", caller w FUN_004c3ea4, this = DAT_005116d4)
+// chcemy pokazywac dobro TYLKO gdy ilosc > 0 (pole +0xc). W innych miejscach
+// zachowanie niezmienione. Sprawdzamy self zamiast return address, bo MinHook
+// podmienia return address na trampoline.
+// ============================================================================
+static uint32_t __fastcall hook_0x419587_qty(void* self, void* edx, int good)
+{
+    // NIC NIE FILTRUJEMY. Panel HQ "najwieksza ilosc surowcow" nie korzysta z tej
+    // funkcji - patrz .ai/docs/RE-ANALIZA-PANEL-HQ-MAX-SUROWCOW.md.
+    // Hook pozostaje jako miejsce na przyszla diagnostyke (pass-through).
+    (void)self; (void)edx; (void)good;
+    return o_0x419587_qty ? o_0x419587_qty(self, edx, good) : 0;
+}
+
+// ============================================================================
 // Globalna mapa good->kategoria z INI
 static std::unordered_map<uint32_t,uint32_t> g_goodCategoryMap;
 static bool g_catIniLoaded = false;
@@ -1178,6 +1199,11 @@ static void __fastcall hook_catbuild(void* self, void* edx)
         uint32_t good = kv.first;
         uint32_t cat = kv.second;
         if (cat > 6) continue;
+        // Kategoria 0 (self+0x180) NIE jest lista reczna - to grupa "najwieksza
+        // ilosc surowcow" budowana i sortowana przez FUN_004a847a (malejaco,
+        // tylko qty != 0). Dopisanie tam dobra psuje sort i pokazuje je przy 0.
+        // Wlaczenie dobra 66 do tej grupy robi patch limitu w FUN_004a847a.
+        if (cat == 0) continue;
         int base = 0x180 + (int)cat * 0x38;
         int* slots = (int*)((char*)self + base);
         bool found = false;
@@ -1442,8 +1468,8 @@ static bool install_hooks()
     ok &= install_one("stock_write(431B53)", VA_STOCK_WRITE, (LPVOID)&hook_stock_write, (LPVOID*)&o_stock_write);
 ok &= install_one("categorize(45CBBE)", VA_CATEGORIZE, (LPVOID)&hook_categorize, (LPVOID*)&o_categorize);
 ok &= install_one("catbuild(4A82BB)", VA_CATBUILD, (LPVOID)&hook_catbuild, (LPVOID*)&o_catbuild);
-// ------ diagnostyka wczytywania zapisu (osobny plik logs\\cnmod_diag.log) ------
-ok &= install_one("world_init(40704B)", VA_WORLD_INIT,   (LPVOID)&hook_world_init,   (LPVOID*)&o_world_init);
+ok &= install_one("qty>0(419587)", VA_0x419587_QTY, (LPVOID)&hook_0x419587_qty, (LPVOID*)&o_0x419587_qty);
+// ------ diagnostyka wczytywania zapisu (osobny plik logs\\cnmod_diag.log) ------ok &= install_one("world_init(40704B)", VA_WORLD_INIT,   (LPVOID)&hook_world_init,   (LPVOID*)&o_world_init);
 ok &= install_one("world_cleanup(407291)", VA_WORLD_CLEANUP, (LPVOID)&hook_world_cleanup, (LPVOID*)&o_world_cleanup);
 ok &= install_one("gsmx_new(4190AE)",   VA_GSMX_NEW,   (LPVOID)&hook_gsmx_new,   (LPVOID*)&o_gsmx_new);
 ok &= install_one("gsmx_load(41912C)",  VA_GSMX_LOAD,  (LPVOID)&hook_gsmx_load,  (LPVOID*)&o_gsmx_load);

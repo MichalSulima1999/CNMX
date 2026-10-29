@@ -867,6 +867,15 @@ static const Patch PATCHES[] = {
     { 0x000A7EF7, 0, 1, { 0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, "MAGAZYN FUN_004a76fd zakladka 5: filtr logicstock <=0x37 -> <=0x42 (wegiel 66)" },
     { 0x000A7FB3, 0, 1, { 0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, "MAGAZYN FUN_004a76fd zakladka 6: filtr logicstock <=0x37 -> <=0x42 (wegiel 66)" },
     { 0x00031A92, 0, 1, { 0x43, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, "FUN_00431a83: ilosc dobra w budynku: granica 0x42 -> 0x43 (wegiel 66 zwraca stan zamiast 0.0)" },
+    /* --- PANEL HQ "NAJWIEKSZA ILOSC SUROWCOW" (grupa 0 = this+0x180) ----------
+       FUN_004a847a buduje grupe 0 jako liste (good, ilosc) dla dobr obecnych w
+       logicstock budynku, tylko qty != 0, sortowana malejaco (remis: alfabetycznie).
+       Petla skanuje dobra 1..0x37 (55) - `cmp ebx,0x37; jle`. Zmiana imm8 0x37->0x42
+       (<=66) wlacza wegiel 66 do sortowanej listy. Bez tego dobro 66 trafialo do
+       grupy 0 tylko przez hook_catbuild (dopisywane na koniec, bez sortowania i bez
+       warunku qty>0) - dlatego bylo widoczne przy 0 i zawsze na dole.
+       Hook cnmod_hook NIE dopisuje juz dobr kategorii 0 (patrz hook_catbuild). */
+    { 0x000A8501, 0, 1, { 0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, "PANEL HQ max surowce: FUN_004a847a granica dobr 0x37 -> 0x42 (wegiel 66 w sortowanej liscie qty>0)" },
 };
 #define PATCH_COUNT (sizeof(PATCHES)/sizeof(PATCHES[0]))
 
