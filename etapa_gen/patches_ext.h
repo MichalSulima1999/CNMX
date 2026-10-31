@@ -185,6 +185,11 @@ static const Patch PATCHES[] = {
     { 0x001595E, 1, 4, { 0x30, 0x67, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, "GOODS_TYPE size 0x35A0->0x6730 (alloc)" },
     { 0x0015833, 0, 1, { 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, "houses logicproduction good guard 0x42->0x7F (good 66)" },
     { 0x00159F1, 0, 1, { 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, "goodtypes validator 0x42->0x7F (good 66)" },
+    /* FUN_00415e8a loop bound extension for good_types +0x24 sprite field.
+       Original loop: while (iVar3 < 0x2cb1) covers records 0-54 (good 1-55).
+       Extended loop: limit 0x66F0 covers records 0-126, safely within the
+       127-record allocation (0x35A0 -> 0x6730) at 0x001595E. */
+    { 0x0015EB2, 0, 4, { 0x30, 0x66, 0x00, 0x00 }, "FUN_00415e8a: loop good_types +0x24 do rekordu 126 (ikona dobra 66)" },
     { 0x0014292, 2, 1, { 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, "toProduceGoodNeedHouse good guard 0x42->0x7F (good 66)" },
     { 0x0056168, 0, 4, { 0x30, 0x67, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, "goods loop bound 0x35A0->0x6730 @456168 (production calc)" },
     { 0x0035CD7, 0, 4, { 0x30, 0x67, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, "goods loop bound 0x35A0->0x6730 @435CD7 (active goods)" },
@@ -876,7 +881,12 @@ static const Patch PATCHES[] = {
        warunku qty>0) - dlatego bylo widoczne przy 0 i zawsze na dole.
        Hook cnmod_hook NIE dopisuje juz dobr kategorii 0 (patrz hook_catbuild). */
     { 0x000A8501, 0, 1, { 0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, "PANEL HQ max surowce: FUN_004a847a granica dobr 0x37 -> 0x42 (wegiel 66 w sortowanej liscie qty>0)" },
-};
+}; // === SPRITE RENDERER BOUND CHECK REMOVED ===
+       // WARN (2026-10-30): FUN_0042f798 jb->jmp patch removed - replaced by
+       // EtapC data patch 0x0015EB2 which extends FUN_00415e8a loop to cover
+       // good_types records 0..126, ensuring good_types[66]+0x24 != -1.
+       // The old sprite renderer check (limit 0x37/55) would still block coal icons
+       // even with good_types filled; the proper fix is the loop extension.
 #define PATCH_COUNT (sizeof(PATCHES)/sizeof(PATCHES[0]))
 
 /* logi (zdefiniowane w osobnej jednostce log.cpp; stdout + plik logs/etapc.log) */

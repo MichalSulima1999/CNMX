@@ -51,6 +51,8 @@ static const uintptr_t VA_POTTER     = 0x46D53A;
 static const uintptr_t VA_CASE46BDC1 = 0x473695;
 static const uintptr_t VA_FIND_OWNER = 0x43267F;
 static const uintptr_t VA_STOCK_ADD  = 0x44B910;
+static const uintptr_t VA_DRAW_GOOD_ICON = 0x0047E381; // FUN_0047e381: rysowanie ikony dobra
+static const uintptr_t VA_INIT_LANDSCAPE_TABLE = 0x412b62; // FUN_00412b62: inicjalizuje tabelę 0x510c60 (landscapetype -> good ID)
 
 // Bramki na sciezce FUN_00473695 (rozklad 2026-10-19) - ktora zatrzymuje produkcje:
 //   0x47369f: call 42C6F0 gate ogolny (bool)
@@ -95,6 +97,14 @@ static const uintptr_t VA_ANIM_SETUP_45C23E  = 0x45C23E; // setup sprite'a niesi
 static const uintptr_t VA_GATE_46B696 = 0x46B696;     // brama do carry render (if [unit+0xAD4]==0 call 0x42D575)
 static const uintptr_t VA_CARRY_LOOKUP_45C94B = 0x45C94B; // lookup carry animation slot
 static const uintptr_t VA_ACTION_LOOP_46B621 = 0x46B621;   // main action loop (FUN_0046b621)
+// UWAGA (2026-10-30): NIE hookowac 0x4E15B3 ani 0x4E162E.
+//   0x4E15B3 (FUN_004e15b3) to lookup TABLICY STRINGOW (zwraca char*, przy braku
+//   wpisu zwraca "<%d:%d:NOT DEFINED>"), a 0x4E162E (FUN_004e162e) to
+//   FUN_004e15b3(4, x). Wczesniejsze detoury (29.10) mialy zla sygnature,
+//   zwracaly smieci i psuly rysowanie.
+//   Ikone węgla rysuje parser tagu {gfxgood:%d,1} (FUN_004e1e3f) na podstawie
+//   good_types[g]+0x24; pole wypelnia FUN_00415e8a. Patch danych 0x0015EB2
+//   (patches_ext.h) rozszerza jego petle na wszystkie rekordy. Bez hooka.
 
 // Diagnostyka wczytywania zapisu (2026-10-28) - TYLKO LOG (osobny plik cnmod_diag.log)
 static const uintptr_t VA_WORLD_INIT      = 0x40704B; // cdecl(short,short,char,void*,uchar) - tworzy wszystkie singletony
@@ -187,6 +197,40 @@ static bool       g_tablePatched = false;
 static int        g_carryLookupCalls = 0;
 static int        g_actionLoopCalls = 0;
 
+// --- Mapowanie landscapetype -> good ID (ini-configurable) --------------------
+
+static std::unordered_map<uint32_t,uint32_t> g_landscapeGoodMap;
+static bool g_landscapeMapLoaded = false;
+
+static void LoadLandscapeGoodMapIni()
+{
+    const char* path = "CN.PLMOD\\types\\landscape_good_map.ini";
+    FILE* f = fopen(path, "r");
+    if (!f) { clog("[lgm] Nie mozna wczytac %s\n", path); return; }
+    char line[256];
+    bool inSec = false;
+    while (fgets(line, sizeof(line), f)) {
+        char* p = line;
+        while (*p==' '||*p=='\t') p++;
+        if (*p=='[') {
+            if (strncmp(p, "[landscape_good_map]", 20)==0) inSec=true; else inSec=false;
+            continue;
+        }
+        if (!inSec) continue;
+        if (*p=='\0'||*p==';'||*p=='#'||*p=='\n'||*p=='\r') continue;
+        char* eq = strchr(p, '=');
+        if (!eq) continue;
+        *eq = '\0';
+        uint32_t lt = (uint32_t)atoi(p);
+        uint32_t good = (uint32_t)atoi(eq+1);
+        g_landscapeGoodMap[lt] = good;
+        clog("[lgm] INI: landscapetype=%u -> good=%u\n", lt, good);
+    }
+    fclose(f);
+    g_landscapeMapLoaded = true;
+    clog("[lgm] Wczytano %u wpisow z %s\n", (uint32_t)g_landscapeGoodMap.size(), path);
+}
+
 // --- Kategoria dobra (ini-configurable) ---------------------------------------
 
 static bool ucache_get(void* u, UnitCache** out)
@@ -238,8 +282,11 @@ typedef int32_t (__fastcall *FnStockWrite)(void* self, void* edx, int32_t good, 
 typedef int (__cdecl *FnCategorize)(int good);
 typedef void (__fastcall *FnCatBuild)(void* self, void* edx);
 typedef uint32_t (__fastcall *Fn0x419587)(void* self, void* edx, int good);
+typedef void* (__fastcall *FnDrawGoodIcon)(void* self, int good, ...);
+typedef void   (__fastcall *FnInitLandscapeTable)(void* self, void* edx);  // 0x412b62: inicjalizuje tabelę 0x510c60
 
 static FnUnitTick  o_unit_tick  = nullptr;
+static FnInitLandscapeTable o_init_landscape_table = nullptr;
 static FnUnit0     o_dispatcher = nullptr;
 static FnUnit0     o_potter     = nullptr;
 static FnUnit0     o_case46bdc1 = nullptr;
@@ -272,11 +319,21 @@ static void(__thiscall* o_action_loop_46b621)(void*, int) = nullptr;
 
 // zdefiniowana nizej - zrzut tabeli renderu niesionego dobra
 static void dump_carry_table_once();
+
+// ============================================================================
+// Detour: FUN_00473461 - unit tick (logowanie na wejsciu)
+// ============================================================================
 static FnUnit0     o_prod_finish = nullptr;   // Faza 3
 static FnStockWrite o_stock_write = nullptr;  // Faza 3
 static FnCategorize o_categorize = nullptr;   // kategoryzacja dobra
 static FnCatBuild   o_catbuild   = nullptr;   // budowa listy goods dla kategorii
 static Fn0x419587   o_0x419587_qty = nullptr; // FUN_00419587 oryginalny
+
+// Hook na FUN_0047e381 - rysowanie ikony dobra na mapie / niesionego (case 0xA).
+// good 66 (wegiel) nie ma wpisu w tabeli goodgraphics (DAT_00568740, wczytywana
+// z goodgraphics.cif) - FUN_0047e381 czytalby -1 i mogl crashowac. Dlatego
+// przekierowujemy na good 3 (kamien), ktory ma poprawny wpis.
+static FnDrawGoodIcon o_draw_good_icon = nullptr;
 
 // ============================================================================
 // Detour: FUN_00473461 - unit tick (logowanie na wejsciu)
@@ -1154,6 +1211,18 @@ static uint32_t __fastcall hook_0x419587_qty(void* self, void* edx, int good)
 }
 
 // ============================================================================
+// Detour: FUN_0047e381 - rysowanie ikony dobra w panelu HQ / wierszu zapasu.
+// Dla good 66 (wegiel) przekierowujemy na good 3 (kamień), ponieważ good 66
+// nie ma własnego zasobu gfxgood w ls_goods.bmd, a good 3 (good_stone) ma.
+// ============================================================================
+static void* __fastcall hook_draw_good_icon(void* self, int good)
+{
+    // Dla węgla (good 66) użyj kamienia (good 3), który ma prawidłowy zasób
+    if (good == GOOD_COAL) good = 3;
+    return o_draw_good_icon(self, good);
+}
+
+// ============================================================================
 // Globalna mapa good->kategoria z INI
 static std::unordered_map<uint32_t,uint32_t> g_goodCategoryMap;
 static bool g_catIniLoaded = false;
@@ -1335,7 +1404,6 @@ static void* __fastcall hook_gsmx_load(void* self, void* edx, void* reader)
     dlog("[gsmx] LOAD wyjscie DAT=%p\n", *(void**)VA_DAT_GSMX);
     return r;
 }
-
 // 0x425EC5 - loader zapisu: cdecl(reader, uchar)
 // Naprawa przyczyny crashu ladowania zapisu:
 //   loader wywoluje FUN_00407291() (cleanup) na starcie, niszczac wszystkie singletony
@@ -1436,6 +1504,29 @@ static bool install_one(const char* name, uintptr_t addr, LPVOID detour, LPVOID*
     return true;
 }
 
+// ============================================================================
+// Detour: FUN_00412b62 - inicjalizuje tabelę 0x510c60 (landscapetype -> good ID)
+// Oryginał wypełnia wpisy tylko dla dóbr 0-55. Po oryginale wypełniamy mapowanie
+// z pliku CN.PLMOD/types/landscape_good_map.ini (można dodać nowe surowce
+// bez przebudowy DLL).
+// ============================================================================
+static void __fastcall hook_init_landscape_table(void* self, void* edx)
+{
+    o_init_landscape_table(self, edx);
+    // Po oryginalnej inicjalizacji wypełniamy mapowanie landscapetype -> good
+    // z pliku CN.PLMOD/types/landscape_good_map.ini
+    if (g_landscapeMapLoaded) {
+        for (auto& kv : g_landscapeGoodMap) {
+            uint32_t lt = kv.first;
+            uint32_t good = kv.second;
+            *(uint32_t*)(0x510c60 + lt * 4u) = good;
+            clog("[lgm] table[%u] = %u (tooltip)\n", lt, good);
+        }
+    } else {
+        clog("[lgm] Mapa nie wczytana - pomijam uzupełnienie tabeli 0x510c60\n");
+    }
+}
+
 static bool install_hooks()
 {
     MH_STATUS st = MH_Initialize();
@@ -1447,6 +1538,9 @@ static bool install_hooks()
 
     // Wczytaj mapping kategorii dobra z INI (przed instalacją hooków)
     LoadGoodCategoriesIni();
+
+    // Wczytaj mapowanie landscapetype -> good ID z INI (przed instalacją hooków)
+    LoadLandscapeGoodMapIni();
 
     ok &= install_one("unit_tick(473461)",  VA_UNIT_TICK,  (LPVOID)&hook_unit_tick,  (LPVOID*)&o_unit_tick);
     ok &= install_one("dispatcher(46BAD7)", VA_DISPATCHER, (LPVOID)&hook_dispatcher, (LPVOID*)&o_dispatcher);
@@ -1468,6 +1562,9 @@ static bool install_hooks()
     ok &= install_one("stock_write(431B53)", VA_STOCK_WRITE, (LPVOID)&hook_stock_write, (LPVOID*)&o_stock_write);
 ok &= install_one("categorize(45CBBE)", VA_CATEGORIZE, (LPVOID)&hook_categorize, (LPVOID*)&o_categorize);
 ok &= install_one("catbuild(4A82BB)", VA_CATBUILD, (LPVOID)&hook_catbuild, (LPVOID*)&o_catbuild);
+// ok &= install_one("goodicon(47e381)", VA_DRAW_GOOD_ICON, (LPVOID)&hook_draw_good_icon, (LPVOID*)&o_draw_good_icon);
+// NIE instalowac detourow 0x4E15B3 / 0x4E162E / 0x42F798 - patrz komentarz przy
+// stalych VA_* (zla sygnatura, zwracaly smieci). Ikona węgla = patch 0x0015EB2.
 ok &= install_one("qty>0(419587)", VA_0x419587_QTY, (LPVOID)&hook_0x419587_qty, (LPVOID*)&o_0x419587_qty);
 // ------ diagnostyka wczytywania zapisu (osobny plik logs\\cnmod_diag.log) ------ok &= install_one("world_init(40704B)", VA_WORLD_INIT,   (LPVOID)&hook_world_init,   (LPVOID*)&o_world_init);
 ok &= install_one("world_cleanup(407291)", VA_WORLD_CLEANUP, (LPVOID)&hook_world_cleanup, (LPVOID*)&o_world_cleanup);
@@ -1476,6 +1573,7 @@ ok &= install_one("gsmx_load(41912C)",  VA_GSMX_LOAD,  (LPVOID)&hook_gsmx_load, 
 ok &= install_one("save_loader(425EC5)",VA_SAVE_LOADER,(LPVOID)&hook_save_loader,(LPVOID*)&o_save_loader);
 ok &= install_one("chunk_read(42A28D)", VA_CHUNK_READ, (LPVOID)&hook_chunk_read, (LPVOID*)&o_chunk_read);
 ok &= install_one("draw_building(4B74C8)", VA_DRAW_BUILDING,(LPVOID)&hook_draw_building,(LPVOID*)&o_draw_building);
+ok &= install_one("init_landscape_table(412b62)", VA_INIT_LANDSCAPE_TABLE, (LPVOID)&hook_init_landscape_table, (LPVOID*)&o_init_landscape_table);
 // ------ koniec diagnostyki ------
 // DIAGNOSTYKA ANIMACJI NIESIENIA (2026-10-25) - TYLKO LOG, zero modyfikacji stanu.
 // Wlaczamy WYLACZNIE funkcje o ZWERYFIKOWANEJ sygnaturze (thiscall, 0 arg. stosu):
