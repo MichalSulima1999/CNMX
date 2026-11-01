@@ -141,9 +141,9 @@ static const uint32_t U_BLDG_IDX   = 0xB34;   // building index (disasm 0x473470
 static const uint32_t U_CANPROD    = 0x195;   // can_produce[good] (bajty)
 static const uint32_t B_HOUSETYPE  = 0x14;    // house_type index w instancji budynku
 
-static const uint32_t GOOD_COAL    = 66;      // wegiel
-static const uint32_t JOB_SMOLARZ  = 56;
-static const uint32_t TYPE_SMOLARNIA = 57;
+// Domyslne dobro awaryjne (uzywane tylko gdy brak pliku cnmx_goods.ini).
+// Wlasciwy rejestr dobr modowanych: CN.PLMOD\types\cnmx_goods.ini.
+static const uint32_t GOOD_COAL    = 66;      // wegiel (fallback)
 
 // ============================================================================
 // Log (logs\cnmod_hook.log, z limitem linii - bez spamu)
@@ -193,7 +193,7 @@ static OwnerCache g_ocache[128];
 static uint32_t   g_ocacheN = 0;
 static bool       g_b644Dumped = false;
 static bool       g_good66Dumped = false;
-static bool       g_tablePatched = false;
+static uint32_t   g_tablePatchMask = 0;   // bit i = wpis g_modGoods[i] juz wpisany do 0x512750
 static int        g_carryLookupCalls = 0;
 static int        g_actionLoopCalls = 0;
 
@@ -229,6 +229,151 @@ static void LoadLandscapeGoodMapIni()
     fclose(f);
     g_landscapeMapLoaded = true;
     clog("[lgm] Wczytano %u wpisow z %s\n", (uint32_t)g_landscapeGoodMap.size(), path);
+}
+
+// --- Rejestr dobr modowanych (CN.PLMOD\types\cnmx_goods.ini) ------------------
+//
+// Kazde dobro dodane modem opisuje jeden blok:
+//   [modded_good]
+//   good            66    ; ID dobra (0..66 - limit silnika, patrz handoff)
+//   landscapetype   88    ; typ krajobrazu (sterta/zasob na mapie)
+//   job             56    ; zawod, ktory je produkuje
+//   house           57    ; typ budynku produkujacego
+//   carry_type      19    ; indeks wpisu w tabeli renderu niesienia (0x512750)
+//   carry_source    20    ; wpis-zrodlo kopiowany do carry_type
+//   icon_fallback   3     ; dobro-ikona, gdy brak gfxgood; -1 = brak
+//
+// Brak pliku => jeden wbudowany wpis (wegiel 66) - zachowanie jak dotychczas.
+
+struct ModdedGood {
+    uint32_t good;
+    uint32_t landscapetype;
+    uint32_t job;
+    uint32_t house;
+    uint32_t carryType;
+    uint32_t carrySource;
+    int32_t  iconFallback;
+};
+
+static const uint32_t MAX_MODDED_GOODS = 32;
+static ModdedGood     g_modGoods[MAX_MODDED_GOODS];
+static uint32_t       g_modGoodN = 0;
+static bool           g_modGoodsLoaded = false;
+
+// revmap[] w house_type ma DOKLADNIE 66 wpisow (0..65). Dobra >= 66 wymagaja
+// uniwersalnego skanu logicstock w hook_gate_431f37 - to stala silnika, nie moda.
+static const uint32_t REVMAP_COUNT = 66;
+
+static void AddModdedGood(const ModdedGood& g)
+{
+    if (g_modGoodN >= MAX_MODDED_GOODS) {
+        clog("[goods] LIMIT %u wpisow - pomijam good=%u\n", MAX_MODDED_GOODS, g.good);
+        return;
+    }
+    g_modGoods[g_modGoodN++] = g;
+}
+
+static const ModdedGood* FindModdedGood(uint32_t good)
+{
+    for (uint32_t i = 0; i < g_modGoodN; i++)
+        if (g_modGoods[i].good == good) return &g_modGoods[i];
+    return nullptr;
+}
+
+static const ModdedGood* FindModdedGoodByJob(uint32_t job)
+{
+    for (uint32_t i = 0; i < g_modGoodN; i++)
+        if (g_modGoods[i].job == job) return &g_modGoods[i];
+    return nullptr;
+}
+
+static const ModdedGood* FindModdedGoodByHouse(uint32_t house)
+{
+    for (uint32_t i = 0; i < g_modGoodN; i++)
+        if (g_modGoods[i].house == house) return &g_modGoods[i];
+    return nullptr;
+}
+
+static bool IsModdedGood(uint32_t good) { return FindModdedGood(good) != nullptr; }
+static bool IsModdedJob(uint32_t job)   { return FindModdedGoodByJob(job) != nullptr; }
+static bool IsModdedHouse(uint32_t house) { return FindModdedGoodByHouse(house) != nullptr; }
+
+// Dobro uzywane w diagnostyce zbiorczej (pierwszy wpis z INI).
+static uint32_t ModdedSampleGood() { return g_modGoodN ? g_modGoods[0].good : GOOD_COAL; }
+
+static void LoadModdedGoodsIni()
+{
+    const char* path = "CN.PLMOD\\types\\cnmx_goods.ini";
+    FILE* f = fopen(path, "r");
+
+    ModdedGood cur;
+    memset(&cur, 0, sizeof cur);
+    cur.iconFallback = -1;
+    bool have = false;
+
+    if (f) {
+        char line[256];
+        while (fgets(line, sizeof(line), f)) {
+            char* p = line;
+            while (*p == ' ' || *p == '\t') p++;
+            if (*p == '[') {
+                if (have) { AddModdedGood(cur); have = false; }
+                memset(&cur, 0, sizeof cur);
+                cur.iconFallback = -1;
+                continue;
+            }
+            if (*p == '\0' || *p == ';' || *p == '#' || *p == '\n' || *p == '\r') continue;
+
+            char* key = p;
+            while (*p && *p != ' ' && *p != '\t' && *p != '=') p++;
+            if (!*p) continue;
+            *p++ = '\0';
+            while (*p == ' ' || *p == '\t' || *p == '=') p++;
+            if (*p == '"') {
+                char* q = p + 1;
+                while (*q && *q != '"') q++;
+                if (*q) *q = '\0';
+                p++;
+            }
+
+            int v = atoi(p);
+            if      (strcmp(key, "good")          == 0) { cur.good = (uint32_t)v; have = true; }
+            else if (strcmp(key, "landscapetype") == 0) cur.landscapetype = (uint32_t)v;
+            else if (strcmp(key, "job")           == 0) cur.job = (uint32_t)v;
+            else if (strcmp(key, "house")         == 0) cur.house = (uint32_t)v;
+            else if (strcmp(key, "carry_type")    == 0) cur.carryType = (uint32_t)v;
+            else if (strcmp(key, "carry_source")  == 0) cur.carrySource = (uint32_t)v;
+            else if (strcmp(key, "icon_fallback") == 0) cur.iconFallback = v;
+        }
+        fclose(f);
+    }
+    if (have) AddModdedGood(cur);
+
+    if (g_modGoodN == 0) {
+        // Fallback: wbudowany wegiel - identycznie jak przed wprowadzeniem INI.
+        ModdedGood coal;
+        coal.good          = 66;
+        coal.landscapetype = 88;
+        coal.job           = 56;
+        coal.house         = 57;
+        coal.carryType     = 19;
+        coal.carrySource   = 20;
+        coal.iconFallback  = 3;
+        AddModdedGood(coal);
+        clog("[goods] Brak %s - uzywam wbudowanego wpisu good=66 (wegiel)\n", path);
+    }
+
+    g_modGoodsLoaded = true;
+    clog("[goods] Wczytano %u dobr modowanych z %s\n", g_modGoodN, path);
+    for (uint32_t i = 0; i < g_modGoodN; i++) {
+        const ModdedGood& g = g_modGoods[i];
+        clog("[goods]   good=%u landscapetype=%u job=%u house=%u carry=%u/%u icon_fallback=%d\n",
+             g.good, g.landscapetype, g.job, g.house, g.carryType, g.carrySource, g.iconFallback);
+        if (g.good > 66) {
+            clog("[goods]   UWAGA: good=%u > 66 - silnik trzyma stan jednostki w 66-wpisowej\n"
+                 "[goods]   tablicy (unit+0x21C). Dobra >66 wymagaja relokacji tablic (Etap C).\n", g.good);
+        }
+    }
 }
 
 // --- Kategoria dobra (ini-configurable) ---------------------------------------
@@ -355,7 +500,7 @@ static void __fastcall hook_unit_tick(void* self, void* edx, int32_t delta)
     if (c) {
         c->calls++;
         bool changed = (c->job != job || c->htype != htype);
-        bool interesting = (job == JOB_SMOLARZ || htype == TYPE_SMOLARNIA);
+        bool interesting = (IsModdedJob(job) || IsModdedHouse(htype));
         bool heartbeat = interesting && (c->calls % 500 == 0);
 
         if (isNew && g_nUnitTick <= 300) {
@@ -367,9 +512,9 @@ static void __fastcall hook_unit_tick(void* self, void* edx, int32_t delta)
         } else if (heartbeat) {
             uint32_t timer = *(uint32_t*)((char*)self + U_TIMER);
             uint32_t sel   = *(uint32_t*)((char*)self + U_SELGOOD);
-            uint8_t  cp    = *((uint8_t*)self + U_CANPROD + GOOD_COAL);
-            clog("[tick#hb] unit=%p job=%u htype=%u timer=%u selgood=%u canprod[66]=%u\n",
-                 self, job, htype, timer, sel, cp);
+            uint8_t  cp    = *((uint8_t*)self + U_CANPROD + ModdedSampleGood());
+            clog("[tick#hb] unit=%p job=%u htype=%u timer=%u selgood=%u canprod[%u]=%u\n",
+                 self, job, htype, timer, sel, ModdedSampleGood(), cp);
         }
         if (changed || isNew) { c->job = job; c->htype = htype; }
     }
@@ -386,7 +531,7 @@ static void __fastcall hook_dispatcher(void* self, void* edx)
     g_nDispatcher++;
     uint32_t job = *(uint32_t*)((char*)self + U_JOB);
 
-    if (job == JOB_SMOLARZ) {
+    if (IsModdedJob(job)) {
         clog("[disp] SMOLARZ unit=%p state+0xACC=%u +0xAB8=%u +0xAD4=%u htype=%u (wywolanie %llu)\n",
              self,
              *(uint32_t*)((char*)self + 0xACC),
@@ -409,7 +554,7 @@ static void __fastcall hook_potter(void* self, void* edx)
 {
     g_nPotter++;
     uint32_t job = *(uint32_t*)((char*)self + U_JOB);
-    if (job == JOB_SMOLARZ) {
+    if (IsModdedJob(job)) {
         clog("[potter] SMOLARZ unit=%p htype=%u (wywolanie %llu)\n",
              self, house_type_of(self), (unsigned long long)g_nPotter);
     } else if (g_nPotter % 5000 == 0) {
@@ -429,7 +574,7 @@ static void __fastcall hook_case46bdc1(void* self, void* edx)
     uint32_t job = *(uint32_t*)((char*)self + U_JOB);
     uint32_t sel = *(uint32_t*)((char*)self + U_SELGOOD);
 
-    if (job == JOB_SMOLARZ) {
+    if (IsModdedJob(job)) {
         clog("[case46BDC1] SMOLARZ unit=%p htype=%u selgood=%u timer=%u acc=%u (wywolanie %llu)\n",
              self, house_type_of(self), sel,
              *(uint32_t*)((char*)self + U_TIMER),
@@ -439,7 +584,7 @@ static void __fastcall hook_case46bdc1(void* self, void* edx)
         clog("[case46BDC1#hb] unit=%p job=%u\n", self, job);
     }
     o_case46bdc1(self, edx);
-    if (job == JOB_SMOLARZ) {
+    if (IsModdedJob(job)) {
         clog("[case46BDC1] SMOLARZ PO: unit=%p acc=%u +0x36c=%u +0x374=%u +0xAD0=%u\n",
              self,
              *(uint32_t*)((char*)self + 0xACC),
@@ -462,9 +607,9 @@ static void* __fastcall hook_find_owner(void* self, void* edx, uint32_t key)
 
     // Diagnostyka: jednorazowy zrzut tablicy wlascicieli dla smolarni.
     // Pokazuje, jakie wpisy (owner/tribe) budynek faktycznie ma w +0x644.
-    if (!g_b644Dumped && htype == TYPE_SMOLARNIA) {
+    if (!g_b644Dumped && IsModdedHouse(htype)) {
         g_b644Dumped = true;
-        clog("[owner] DUMP +0x644 htype=57 key=0x%X ret=%p\n", key, ret);
+        clog("[owner] DUMP +0x644 htype=%u key=0x%X ret=%p\n", htype, key, ret);
         for (uint32_t i = 0; i < 20; i++) {
             uint32_t v = *(uint32_t*)((char*)self + 0x644 + i * 4);
             if (v)
@@ -472,7 +617,7 @@ static void* __fastcall hook_find_owner(void* self, void* edx, uint32_t key)
         }
     }
 
-    bool interesting = (htype == TYPE_SMOLARNIA || ret == nullptr);
+    bool interesting = (IsModdedHouse(htype) || ret == nullptr);
 
     // cache: loguj tylko na zmianie (albo zawsze dla NULL - bezpiecznictwo)
     bool changed = false;
@@ -497,12 +642,12 @@ static void* __fastcall hook_find_owner(void* self, void* edx, uint32_t key)
     if (ret == nullptr) {
         g_nFindOwnerNull++;
         // Inne miejsca wywolujace te funkcje tez dostaja NULL (gra to obsluguje)
-        // - logujemy tylko htype 57 i pierwszych 20, zeby nie zalac logu.
-        if (htype == TYPE_SMOLARNIA || g_nFindOwnerNull <= 20) {
+        // - logujemy tylko budynki modowane i pierwszych 20, zeby nie zalac logu.
+        if (IsModdedHouse(htype) || g_nFindOwnerNull <= 20) {
             clog("[owner] NULL! building=%p key=0x%X htype=%u (licznik=%llu)\n",
                  self, key, htype, (unsigned long long)g_nFindOwnerNull);
         }
-    } else if (htype == TYPE_SMOLARNIA && changed) {
+    } else if (IsModdedHouse(htype) && changed) {
         uint32_t f8  = *(uint32_t*)((char*)ret + 8);
         uint32_t f12 = *(uint32_t*)((char*)ret + 0xC);
         clog("[owner] SMOLARNIA building=%p key=0x%X ret=%p "
@@ -519,11 +664,11 @@ static void* __fastcall hook_find_owner(void* self, void* edx, uint32_t key)
 
 static void __fastcall hook_stock_add(void* self, void* edx, int32_t good, int32_t qty)
 {
-    if (good == (int32_t)GOOD_COAL) {
+    if (IsModdedGood((uint32_t)good)) {
         if (qty >= 0) { g_nStock66P++; g_sum66P += qty; }
         else          { g_nStock66N++; g_sum66N += qty; }
-        clog("[stock] WEGL good=66 qty=%+d stockobj=%p (prod #%llu / zuzyc #%llu, bilans=%lld)\n",
-             qty, self,
+        clog("[stock] MODDED good=%d qty=%+d stockobj=%p (prod #%llu / zuzyc #%llu, bilans=%lld)\n",
+             good, qty, self,
              (unsigned long long)g_nStock66P,
              (unsigned long long)g_nStock66N,
              (long long)(g_sum66P + g_sum66N));
@@ -543,7 +688,7 @@ static int32_t __fastcall hook_gate_42da65(void* self, void* edx, int32_t good)
 {
     int32_t r = o_gate_42da65(self, edx, good);
     g_nG42DA65++;
-    if (good == (int32_t)GOOD_COAL) {
+    if (IsModdedGood((uint32_t)good)) {
         // Faza 1.6 (U1): listCount z [0x511200]+p*0x1AE08+0x6928+job*0x400+4
         uint32_t ujob = *(uint32_t*)((char*)self + U_JOB);
         uint32_t p    = *(uint32_t*)((char*)self + 0x14);
@@ -556,9 +701,9 @@ static int32_t __fastcall hook_gate_42da65(void* self, void* edx, int32_t good)
             l1  = *(uint32_t*)(sl + 0xDC);
             l2  = *(uint32_t*)(sl + 0xE0);
         }
-        uint8_t cp = *((uint8_t*)self + U_CANPROD + GOOD_COAL);
-        clog("[gate 42DA65] unit=%p job=%u good=%d -> %d listCount=%u list=[%u,%u,%u] canprod66=%u (#%llu)\n",
-             self, ujob, good, r, cnt, l0, l1, l2, cp,
+        uint8_t cp = *((uint8_t*)self + U_CANPROD + (uint32_t)good);
+        clog("[gate 42DA65] unit=%p job=%u good=%d -> %d listCount=%u list=[%u,%u,%u] canprod[%d]=%u (#%llu)\n",
+             self, ujob, good, r, cnt, l0, l1, l2, good, cp,
              (unsigned long long)g_nG42DA65);
     }
     return r;
@@ -568,7 +713,7 @@ static int32_t __fastcall hook_gate_44b58a(void* self, void* edx, int32_t good)
 {
     int32_t r = o_gate_44b58a(self, edx, good);
     g_nG44B58A++;
-    if (good == (int32_t)GOOD_COAL) {
+    if (IsModdedGood((uint32_t)good)) {
         clog("[gate 44B58A] unit=%p good=%d -> %d (wywolanie %llu)\n",
              self, good, r, (unsigned long long)g_nG44B58A);
     }
@@ -590,7 +735,7 @@ static int32_t __fastcall hook_gate_4316f3(void* self, void* edx, int32_t good, 
 {
     int32_t r = o_gate_4316f3(self, edx, good, flag);
     g_nG4316F3++;
-    if (good == (int32_t)GOOD_COAL) {
+    if (IsModdedGood((uint32_t)good)) {
         clog("[gate 4316F3 REVMap] building=%p htype=%u good=%d flag=%d -> %d (wywolanie %llu)\n",
              self, *(uint32_t*)((char*)self + B_HOUSETYPE), good, flag, r,
              (unsigned long long)g_nG4316F3);
@@ -613,7 +758,7 @@ static int32_t __fastcall hook_gate_431ddf(void* self, void* edx, int32_t good)
     int32_t r = o_gate_431ddf(self, edx, good);
     g_nG431DDF++;
     uint32_t htype = *(uint32_t*)((char*)self + B_HOUSETYPE);
-    bool log = (htype == TYPE_SMOLARNIA || good == (int32_t)GOOD_COAL);
+    bool log = (IsModdedHouse(htype) || IsModdedGood((uint32_t)good));
     if (!log && (htype == 13 || htype == 14) && g_smpDDF1314 < 300) {
         log = true; g_smpDDF1314++;
     }
@@ -640,7 +785,7 @@ static int32_t __fastcall hook_gate_431ced(void* self, void* edx, int32_t slot)
     int32_t r = o_gate_431ced(self, edx, slot);
     g_nG431CED++;
     uint32_t htype = *(uint32_t*)((char*)self + B_HOUSETYPE);
-    bool log = (htype == TYPE_SMOLARNIA);
+    bool log = IsModdedHouse(htype);
     if (!log && (htype == 13 || htype == 14) && g_smpCED1314 < 150) { log = true; g_smpCED1314++; }
     if (!log && htype >= 7 && htype <= 9 && g_smpCED79 < 50)        { log = true; g_smpCED79++; }
     if (log) {
@@ -674,28 +819,9 @@ static int32_t __fastcall hook_gate_431ced(void* self, void* edx, int32_t slot)
 //   piekarnia      (ht 13): slot1 -> good 11  -> blokuje
 static int32_t __fastcall hook_gate_431f37(void* self, void* edx, int32_t good)
 {
-    // Dobra >= 66 (węgiel i nowe surowce) leżą poza revmap[] (66 wpisów, 0..65).
-    // Skanujemy logicstock budynku uniwersalnie, zamiast czytać poza tablicą.
-    if (good >= (int32_t)GOOD_COAL) {
-        g_nG431F37++;
-        uint32_t htype = *(uint32_t*)((char*)self + B_HOUSETYPE);
-        char* rec = house_rec(htype);
-        if (rec) {
-            uint32_t cnt = *(uint32_t*)(rec + OFF_STOCK_LIST);
-            for (uint32_t i = 0; i < cnt; i++) {
-                if (*(int32_t*)(rec + OFF_STOCK_LIST + 4 + (size_t)i * STOCK_ENTRY_SIZE) == good) {
-                    clog("[g431F37] universal: bldg=%p htype=%u good=%d -> slot=%u\n", self, htype, good, i);
-                    return (int32_t)i;
-                }
-            }
-        }
-        clog("[g431F37] universal: bldg=%p htype=%u good=%d -> NOT FOUND\n", self, htype, good);
-        return -1;
-    }
-
-    // Dobra >= 66 (węgiel i nowe surowce) leżą poza revmap[] (66 wpisów, 0..65).
-    // Skanujemy logicstock budynku uniwersalnie, zamiast czytać poza tablicą.
-    if (good >= (int32_t)GOOD_COAL) {
+    // Dobra >= REVMAP_COUNT (wegiel i nowe surowce) leza poza revmap[] (66 wpisow,
+    // 0..65). Skanujemy logicstock budynku uniwersalnie, zamiast czytac poza tablica.
+    if (good >= (int32_t)REVMAP_COUNT) {
         g_nG431F37++;
         uint32_t htype = *(uint32_t*)((char*)self + B_HOUSETYPE);
         char* rec = house_rec(htype);
@@ -715,25 +841,7 @@ static int32_t __fastcall hook_gate_431f37(void* self, void* edx, int32_t good)
     int32_t r = o_gate_431f37(self, edx, good);
     g_nG431F37++;
 
-    if (good >= (int32_t)GOOD_COAL && r >= 0) {
-        uint32_t htype = *(uint32_t*)((char*)self + B_HOUSETYPE);
-        char* rec = house_rec(htype);
-        if (rec) {
-            uint32_t cnt = *(uint32_t*)(rec + OFF_STOCK_LIST);
-            int32_t  slotgood = -1;
-            if ((uint32_t)r < cnt)
-                slotgood = *(int32_t*)(rec + OFF_STOCK_LIST + 4 + (size_t)r * STOCK_ENTRY_SIZE);
-            if (slotgood != good) {
-                if (g_nG431F37 < 40 || (g_nG431F37 % 3000) == 0) {
-                    clog("[g431F37 BLOCK] bldg=%p htype=%u good=%d -> slot %d (tam dobro %d) => -1 (#%llu)\n",
-                         self, htype, good, r, slotgood, (unsigned long long)g_nG431F37);
-                }
-                return -1;
-            }
-        }
-    }
-
-    if (good == (int32_t)GOOD_COAL) {
+    if (IsModdedGood((uint32_t)good)) {
         clog("[g431F37] bldg=%p htype=%u good=%d -> slot=%d (#%llu)\n",
              self, *(uint32_t*)((char*)self + B_HOUSETYPE), good, r,
              (unsigned long long)g_nG431F37);
@@ -741,59 +849,60 @@ static int32_t __fastcall hook_gate_431f37(void* self, void* edx, int32_t good)
 
     if (!g_good66Dumped) {
         g_good66Dumped = true;
+        const ModdedGood* p = g_modGoodN ? &g_modGoods[0] : nullptr;
+        uint32_t sample = p ? p->good : GOOD_COAL;
         char** ggt = (char**)0x511420;
         void** gga = (void**)0x568740;
         uint32_t lt = 0xFFFFFFFF, fl = 0xFFFFFFFF;
         if (ggt && *ggt) {
-            lt = *(uint32_t*)(*ggt + 66 * 0xD0 + 0x20);
-            fl = *(uint32_t*)(*ggt + 66 * 0xD0 + 0x30);
+            lt = *(uint32_t*)(*ggt + sample * 0xD0 + 0x20);
+            fl = *(uint32_t*)(*ggt + sample * 0xD0 + 0x30);
         }
         intptr_t pal = -1;
-        if (gga && *gga) pal = *(intptr_t*)((char*)*gga + 66 * 4);
-        clog("[good66] landscapetype=%u flags=0x%08X palette=%p (basePal=%p baseGood=%p)\n",
-             lt, fl, (void*)pal, *gga, *ggt);
+        if (gga && *gga) pal = *(intptr_t*)((char*)*gga + sample * 4);
+        clog("[good%u] landscapetype=%u flags=0x%08X palette=%p (basePal=%p baseGood=%p)\n",
+             sample, lt, fl, (void*)pal, *gga, *ggt);
     }
 
-    // Patch table 0x512750 (carry render): entry for type 19 (coal) <- copy from type 20 (iron, known-good)
-    if (!g_tablePatched) {
+    // Patch tabeli renderu niesienia (0x512750, stride 0x184): dla kazdego dobra
+    // z rejestru kopiujemy wpis carry_source -> carry_type i ustawiamy +0x10 = good.
+    // Dawniej zaszyte: carry_type 19 (sterta wegla), carry_source 20 (zelazo).
+    if (g_modGoodsLoaded) {
         void** tbl = (void**)0x512750;
         if (tbl && *tbl) {
             char* base = (char*)*tbl;
-            char* e19 = base + 19 * 0x184;
-            char* e20 = base + 20 * 0x184;
-            if (e20[0] != 0) {
-                memcpy(e19, e20, 0x184);
-                *(uint32_t*)(e19 + 0x10) = 66;
-                clog("[table] patched type19 from type20: first=%d good=%u\n", e19[0], *(uint32_t*)(e19+0x10));
-                g_tablePatched = true;
-            } else {
-                // tablica zaladowana - policz wypelnione wpisy
+            for (uint32_t i = 0; i < g_modGoodN; i++) {
+                if (g_tablePatchMask & (1u << i)) continue;   // juz zalatwiony
+                const ModdedGood& g = g_modGoods[i];
+                char* dst = base + g.carryType * 0x184;
+                char* src = base + g.carrySource * 0x184;
+                if (src[0] != 0) {
+                    memcpy(dst, src, 0x184);
+                    *(uint32_t*)(dst + 0x10) = g.good;
+                    clog("[table] good=%u: typ %u <- %u (first=%d)\n",
+                         g.good, g.carryType, g.carrySource, dst[0]);
+                    g_tablePatchMask |= (1u << i);
+                    continue;
+                }
+                // zrodlo puste: jesli tablica ma juz jakies wpisy, kopiuj z typu 0
                 int filled = 0;
                 for (int t = 0; t < 88; t++) if (base[t * 0x184] != 0) filled++;
-
-                // jesli typ 19 pusty a tablica ma cos -> zaladuj recznie (kopiuj z typu 0)
-                if (filled > 0 && e19[0] == 0) {
-                    char* e0 = base + 0 * 0x184;
-                    memcpy(e19, e0, 0x184);
-                    *(uint32_t*)(e19 + 0x10) = 66;
-                    clog("[table] MANUAL PATCH type19: first=%d good=%u +0x04=%u (copied from type0)\n",
-                         (unsigned char)e19[0], *(uint32_t*)(e19+0x10), *(uint32_t*)(e19+0x04));
-                    g_tablePatched = true;
-                } else if (e19[0] != 0) {
-                    g_tablePatched = true;
-                }
-                // log co 5000 dla diag
-                static uint64_t tb_cnt = 0;
-                if (++tb_cnt % 5000 == 0) {
-                    int first_filled = -1;
-                    for (int t = 0; t < 88; t++) if (base[t * 0x184] != 0) { first_filled = t; break; }
-                    clog("[table] (call %llu) base=%p filled=%d first_filled=%d entry19_first=%d entry20_first=%d\n",
-                         (unsigned long long)tb_cnt, base, filled, first_filled, (unsigned char)e19[0], (unsigned char)e20[0]);
+                if (dst[0] != 0) {                            // wpis juz poprawny
+                    g_tablePatchMask |= (1u << i);
+                } else if (filled > 0) {
+                    memcpy(dst, base, 0x184);
+                    *(uint32_t*)(dst + 0x10) = g.good;
+                    clog("[table] good=%u: MANUAL typ %u <- typ 0 (first=%d)\n",
+                         g.good, g.carryType, (unsigned char)dst[0]);
+                    g_tablePatchMask |= (1u << i);
                 }
             }
-        } else if (!g_tablePatched) {
-            static bool logged = false;
-            if (!logged) { logged = true; clog("[table] base ptr NULL (0x512750=%p)\n", *tbl); }
+            static uint64_t tb_cnt = 0;
+            if (g_tablePatchMask != ((g_modGoodN >= 32) ? 0xFFFFFFFFu : ((1u << g_modGoodN) - 1u))
+                && (++tb_cnt % 5000 == 0)) {
+                clog("[table] czekam na tabele 0x512750 (mask=0x%X, n=%u)\n",
+                     g_tablePatchMask, g_modGoodN);
+            }
         }
     }
     return r;
@@ -801,7 +910,7 @@ static int32_t __fastcall hook_gate_431f37(void* self, void* edx, int32_t good)
 
 // ============================================================================
 // Detour: FUN_0045c94b (0x45C94B) - lookup carry animation slot for good.
-// If good=66 (coal) not found in 4 slots, populate empty slot and return it.
+// Jesli dobro modowane nie ma slotu w 4 wpisach, wypelniamy pusty slot.
 // ============================================================================
 static int __thiscall hook_carry_lookup_45c94b(void* self, int good)
 {
@@ -810,7 +919,7 @@ static int __thiscall hook_carry_lookup_45c94b(void* self, int good)
     int* slots = (int*)((char*)self + 0xAF4);  // [0]=good0, [1]=count0, [2]=good1, [3]=count1, ...
     
     // log ALL calls
-    if (good == 66 || g_carryLookupCalls < 20) {
+    if (IsModdedGood((uint32_t)good) || g_carryLookupCalls < 20) {
         clog("[carryLookup] #%d unit=%p good=%d slots: ", g_carryLookupCalls, self, good);
         for (int i = 0; i < 4; i++) {
             clog("%d:(g=%d c=%d) ", i, slots[i*2], slots[i*2+1]);
@@ -823,13 +932,13 @@ static int __thiscall hook_carry_lookup_45c94b(void* self, int good)
             return i;  // found
         }
     }
-    // not found - if coal (66), populate first empty slot
-    if (good == 66) {
+    // not found - dla dobr modowanych wypelniamy pierwszy pusty slot
+    if (IsModdedGood((uint32_t)good)) {
         for (int i = 0; i < 4; i++) {
             if (slots[i * 2] == 0) {  // empty slot
-                slots[i * 2] = 66;
+                slots[i * 2] = good;
                 slots[i * 2 + 1] = 100;  // count = 100 (required by FUN_0045caa8)
-                clog("[carrySlot] populated slot %d for coal (unit=%p)\n", i, self);
+                clog("[carrySlot] populated slot %d for good=%d (unit=%p)\n", i, good, self);
                 return i;
             }
         }
@@ -860,39 +969,42 @@ static void __fastcall hook_action_loop_46b621(void* self, void* edx, int param_
     bool saved_ad4 = false;
     uint32_t orig_ad4 = 0;
 
-    // Logowanie każdego smolarza (diagnostyka)
-    if (job == JOB_SMOLARZ) {
-        clog("[anim] SMOLARZ unit=%p ad0=%u ad4=%u param=%d\n", self, ad0, ad4, param_1);
+    // Logowanie kazdego modowanego zawodu (diagnostyka)
+    const ModdedGood* mg = FindModdedGoodByJob(job);
+    if (mg) {
+        clog("[anim] MODDED unit=%p job=%u good=%u ad0=%u ad4=%u param=%d\n",
+             self, job, mg->good, ad0, ad4, param_1);
     }
 
-    if (job == JOB_SMOLARZ && (ad0 == GOOD_COAL || ad4 == GOOD_COAL)) {
+    if (mg && (ad0 == mg->good || ad4 == mg->good)) {
+        const uint32_t mgood = mg->good;
         orig_ad4 = ad4;
         saved_ad4 = true;
 
-        // Wypełnij slot carry dla węgla (good=66, count=100)
+        // Wypelnij slot carry dla dobra modowanego (count=100)
         int* slots = (int*)((char*)self + 0xAF4);
         int empty = -1;
         bool already = false;
         for (int i = 0; i < 4; i++) {
-            if (slots[i * 2] == GOOD_COAL && slots[i * 2 + 1] >= 1) { already = true; break; }
+            if (slots[i * 2] == (int)mgood && slots[i * 2 + 1] >= 1) { already = true; break; }
             if (slots[i * 2] == 0 && empty < 0) empty = i;
         }
         if (!already && empty >= 0) {
-            slots[empty * 2] = GOOD_COAL;
+            slots[empty * 2] = (int)mgood;
             slots[empty * 2 + 1] = 100;
-            clog("[anim] slot %d wypełniony dla węgla (unit=%p)\n", empty, self);
+            clog("[anim] slot %d wypelniony dla good=%u (unit=%p)\n", empty, mgood, self);
         }
 
-        // Ustaw +0xAD0=66
-        if (ad0 != GOOD_COAL) {
-            *(uint32_t*)((char*)self + 0xAD0) = GOOD_COAL;
+        // Ustaw +0xAD0 = produkowane dobro
+        if (ad0 != mgood) {
+            *(uint32_t*)((char*)self + 0xAD0) = mgood;
         }
 
         // Zeruj +0xAD4 żeby ścieżka kat 5 była osiągalna (oryginał ma +0xAD4!=0 → idzie do dostawy)
         *(uint32_t*)((char*)self + 0xAD4) = 0;
 
-        clog("[anim] przygotowano węgiel: ad0=%u ad4=0 (unit=%p)\n",
-             *(uint32_t*)((char*)self + 0xAD0), self);
+        clog("[anim] przygotowano good=%u: ad0=%u ad4=0 (unit=%p)\n",
+             mgood, *(uint32_t*)((char*)self + 0xAD0), self);
     }
 
     // call original via MinHook trampoline (avoids recursion)
@@ -926,8 +1038,8 @@ static void __fastcall hook_gate_46b696(void* self, void* edx, int a)
     // sprawdzamy [self+0xAD4] - czy == 0?
     uint32_t ad4 = *(uint32_t*)((char*)self + 0xAD4);
     uint32_t ad0 = *(uint32_t*)((char*)self + 0xAD0);
-    if (ad0 == 66) { // tylko wegiel
-        clog("[gate46B696] unit=%p ad4=%u ad0=%u (wegiel!) call_carry_render=%s\n",
+    if (IsModdedGood(ad0)) {
+        clog("[gate46B696] unit=%p ad4=%u ad0=%u (dobro modowane) call_carry_render=%s\n",
              self, ad4, ad0, (ad4 == 0) ? "TAK (ad4==0)" : "NIE (ad4!=0)");
     }
     // oryginalna logika: if (ad4 == 0) call 0x42D575
@@ -953,10 +1065,10 @@ static void __thiscall hook_pickup_4760bf(void* self)
 
     o_pickup_4760bf(self);
 
-    // logujemy tylko wybrane dobra (wegiel) albo pierwsze 30 wywolan dowolnych
+    // logujemy tylko wybrane dobra (modowane) albo pierwsze 30 wywolan dowolnych
     static int nPickup = 0;
     nPickup++;
-    if (sel == GOOD_COAL || ad4 == GOOD_COAL || nPickup <= 30) {
+    if (IsModdedGood(sel) || IsModdedGood(ad4) || nPickup <= 30) {
         clog("[pickup] unit=%p sel=%u job=%u atomic=%u | PRZED ad0=%u ad4=%u | PO ad0=%u ad4=%u\n",
              self, sel, job, atomic_, ad0, ad4,
              *(uint32_t*)((char*)self + 0xAD0), *(uint32_t*)((char*)self + 0xAD4));
@@ -1023,11 +1135,11 @@ static bool __thiscall hook_anim_lookup_45d14f(void* self, short* a, short* b)
     bool r = o_anim_lookup_45d14f(self, a, b);
 
     static int n = 0; n++;
-    static int nCoal = 0;
-    if (ad4 == GOOD_COAL) nCoal++;
-    if ((ad4 == GOOD_COAL && nCoal <= 60) || n <= 40) {
+    static int nModded = 0;
+    if (IsModdedGood(ad4)) nModded++;
+    if ((IsModdedGood(ad4) && nModded <= 60) || n <= 40) {
         clog("[d14f] ad4=%u in=(%d,%d) -> ret=%d%s\n", ad4, ia, ib, (int)r,
-             (ad4 == GOOD_COAL && !r) ? "  <<< WEGIEL: BRAK WARIANTU" : "");
+             (IsModdedGood(ad4) && !r) ? "  <<< MODDED: BRAK WARIANTU" : "");
     }
     return r;
 }
@@ -1046,12 +1158,12 @@ static bool __thiscall hook_anim_setup_45c23e(void* self, short* a, short* b)
     bool r = o_anim_setup_45c23e(self, a, b);
 
     static int n = 0; n++;
-    static int nCoal = 0;
-    if (ad4 == GOOD_COAL) nCoal++;
-    if ((ad4 == GOOD_COAL && nCoal <= 60) || n <= 40) {
+    static int nModded = 0;
+    if (IsModdedGood(ad4)) nModded++;
+    if ((IsModdedGood(ad4) && nModded <= 60) || n <= 40) {
         clog("[c23e] ad4=%u in=(%d,%d) -> ret=%d stan368=%u%s\n", ad4, ia, ib, (int)r,
              *(uint32_t*)((char*)self + 0x368),
-             (ad4 == GOOD_COAL && !r) ? "  <<< WEGIEL: SETUP ODRZUCONY" : "");
+             (IsModdedGood(ad4) && !r) ? "  <<< MODDED: SETUP ODRZUCONY" : "");
     }
     return r;
 }
@@ -1087,19 +1199,15 @@ static void dump_carry_table_once()
              *(uint32_t*)rc, *(uint32_t*)(rc+4), *(uint8_t*)(rc+0xe1));
     }
 
-    // FIX: type 19 (coal pile, landscapetype=19) jest pusty -> niesiony wegiel nie jest rysowany.
-    // Ustawiamy first=1, f04=2, f08=19 (type index), f0C=133 (jak typy 5-16), good10=66 (carried_good dla węgla).
-    unsigned char* e19 = (unsigned char*)(base + 19u * 0x184);
-    if (true) {  // FORCE: always patch type 19 (was skipping due to "juz wypelniony")
-        *(uint32_t*)(e19 + 0x00) = 1;   // first = 1 (wpis istnieje)
-        *(uint32_t*)(e19 + 0x04) = 0;   // f04 = 0 (tribe 0, z diag: *DAT_00569274=0)
-        *(uint32_t*)(e19 + 0x08) = 19;  // f08 = type index (19)
-        *(uint32_t*)(e19 + 0x0C) = 133; // f0C = 133 (jak typy 5-16)
-        *(uint32_t*)(e19 + 0x10) = GOOD_COAL;  // good = 66 (wegiel)
-        clog("[table] FIX type 19 (coal): first=1 f04=2 f08=19 f0C=133 good=66\n");
-    } else {
-        clog("[table] type 19 juz wypelniony (first=%u good=%u)\n",
-             *(uint32_t*)(e19 + 0x00), *(uint32_t*)(e19 + 0x10));
+    // Diagnostyka: pokaz wpisy renderu dla dobr z rejestru INI (bez zaszytego typu).
+    for (uint32_t i = 0; i < g_modGoodN; i++) {
+        const ModdedGood& g = g_modGoods[i];
+        unsigned char* e = (unsigned char*)(base + (uint32_t)g.carryType * 0x184);
+        clog("[table] good=%u typ=%u: f00=%u f04=%u f08=%u f0C=%u good10=%u\n",
+             g.good, g.carryType,
+             *(uint32_t*)(e + 0x00), *(uint32_t*)(e + 0x04),
+             *(uint32_t*)(e + 0x08), *(uint32_t*)(e + 0x0C),
+             *(uint32_t*)(e + 0x10));
     }
 }
 static void __thiscall hook_carry_render_42d575(void* self, int param)
@@ -1107,7 +1215,7 @@ static void __thiscall hook_carry_render_42d575(void* self, int param)
     uint32_t carried = *(uint32_t*)((char*)self + 0xAD0);
     uint32_t job = *(uint32_t*)((char*)self + U_JOB);
     uint32_t htype = house_type_of(self);
-    if (carried == GOOD_COAL || job == JOB_SMOLARZ || param == GOOD_COAL) {
+    if (IsModdedGood(carried) || IsModdedJob(job) || IsModdedGood((uint32_t)param)) {
         clog("[carry] unit=%p job=%u htype=%u carried=%u param=%d ad4=%u\n",
              self, job, htype, carried, param, *(uint32_t*)((char*)self + 0xAD4));
     }
@@ -1119,7 +1227,7 @@ static void __fastcall hook_tick_473618(void* self, void* edx, int32_t delta)
 {
     g_nTick473618++;
     uint32_t job = *(uint32_t*)((char*)self + U_JOB);
-    if (job == JOB_SMOLARZ) {
+    if (IsModdedJob(job)) {
         clog("[tick473618] SMOLARZ unit=%p htype=%u delta=%d (wywolanie %llu)\n",
              self, house_type_of(self), delta, (unsigned long long)g_nTick473618);
     }
@@ -1139,7 +1247,7 @@ static int32_t __fastcall hook_set_action(void* self, void* edx, int32_t actionI
     g_nSetAction++;
     int32_t r = o_set_action(self, edx, actionId, param);
     uint32_t job = *(uint32_t*)((char*)self + U_JOB);
-    if (job == JOB_SMOLARZ || actionId == 6 || actionId == 0x16 || param == (int32_t)GOOD_COAL) {
+    if (IsModdedJob(job) || actionId == 6 || actionId == 0x16 || IsModdedGood((uint32_t)param)) {
         uint32_t jobRecOff = 0x24 + (uint32_t)actionId;
         uint32_t allow = 0xFF;   // 0xFF = actionId poza rekordem joba
         char* jr = job_rec(job);
@@ -1161,7 +1269,7 @@ static void __fastcall hook_prod_finish(void* self, void* edx)
 {
     g_nProdFinish++;
     uint32_t job = *(uint32_t*)((char*)self + U_JOB);
-    if (job == JOB_SMOLARZ) {
+    if (IsModdedJob(job)) {
         clog("[prodFinish] SMOLARZ unit=%p selgood=%u 36c=%u acc=%u ad0=%u\n",
              self, *(uint32_t*)((char*)self + U_SELGOOD),
              *(uint32_t*)((char*)self + 0x36C),
@@ -1178,7 +1286,7 @@ static int32_t __fastcall hook_stock_write(void* self, void* edx, int32_t good, 
     g_nStockWrite++;
     int32_t r = o_stock_write(self, edx, good, amount, frac, flag);
     uint32_t htype = *(uint32_t*)((char*)self + B_HOUSETYPE);
-    if (htype == TYPE_SMOLARNIA || good == (int32_t)GOOD_COAL) {
+    if (IsModdedHouse(htype) || IsModdedGood((uint32_t)good)) {
         clog("[stockWrite] bldg=%p htype=%u good=%d amount=%d frac=%d flag=%d -> %d\n",
              self, htype, good, amount, frac, flag, r);
     }
@@ -1212,13 +1320,13 @@ static uint32_t __fastcall hook_0x419587_qty(void* self, void* edx, int good)
 
 // ============================================================================
 // Detour: FUN_0047e381 - rysowanie ikony dobra w panelu HQ / wierszu zapasu.
-// Dla good 66 (wegiel) przekierowujemy na good 3 (kamień), ponieważ good 66
-// nie ma własnego zasobu gfxgood w ls_goods.bmd, a good 3 (good_stone) ma.
+// Jesli dobro modowane nie ma wlasnego zasobu gfxgood w ls_goods.bmd, rysujemy
+// ikone dobra zapasowego z INI (icon_fallback, dla wegla = 3 kamien).
 // ============================================================================
 static void* __fastcall hook_draw_good_icon(void* self, int good)
 {
-    // Dla węgla (good 66) użyj kamienia (good 3), który ma prawidłowy zasób
-    if (good == GOOD_COAL) good = 3;
+    const ModdedGood* mg = FindModdedGood((uint32_t)good);
+    if (mg && mg->iconFallback >= 0) good = mg->iconFallback;
     return o_draw_good_icon(self, good);
 }
 
@@ -1291,12 +1399,19 @@ static void __fastcall hook_catbuild(void* self, void* edx)
 }
 
 // ============================================================================
-// Hook: ustawia can_produce[66]=1 po kazdym wywolaniu 0x44a0d9 (dispatcher produkcji)
+// Hook: ustawia can_produce[good]=1 dla wszystkich dobr z rejestru INI
+// po kazdym wywolaniu 0x44a0d9 (dispatcher produkcji)
 static void __fastcall hook_sched_44a0d9(void* self, void* edx)
 {
     if (o_sched_44a0d9) o_sched_44a0d9(self, edx);
     if (self) {
-        *(unsigned char*)((char*)self + U_CANPROD + GOOD_COAL) = 1;
+        // can_produce[] to tablica bajtow od unit+0x195; bezpieczny zakres do 0x218
+        // (0x195 + 131), wiec dobra <= 126 nie wychodza poza rekord jednostki.
+        for (uint32_t i = 0; i < g_modGoodN; i++) {
+            uint32_t g = g_modGoods[i].good;
+            if (g < 0x83)
+                *(unsigned char*)((char*)self + U_CANPROD + g) = 1;
+        }
     }
 }
 
@@ -1541,6 +1656,9 @@ static bool install_hooks()
 
     // Wczytaj mapowanie landscapetype -> good ID z INI (przed instalacją hooków)
     LoadLandscapeGoodMapIni();
+
+    // Wczytaj rejestr dobr modowanych (zastepuje zaszyte GOOD_COAL)
+    LoadModdedGoodsIni();
 
     ok &= install_one("unit_tick(473461)",  VA_UNIT_TICK,  (LPVOID)&hook_unit_tick,  (LPVOID*)&o_unit_tick);
     ok &= install_one("dispatcher(46BAD7)", VA_DISPATCHER, (LPVOID)&hook_dispatcher, (LPVOID*)&o_dispatcher);

@@ -31,6 +31,9 @@ Zasady podziału:
 
 - **Dane / tabela / limit** → patch w EtapC. **Zachowanie / logika** → hook w `cnmod_hook`.
   Nigdy nie implementuj tej samej zmiany w obu.
+- **Nowe dobra modowane** konfiguruje się danymi: `CN.PLMOD\types\cnmx_goods.ini`
+  (rejestr w `cnmod_hook`, dawniej zaszyte `GOOD_COAL`). Nie dopisuj kolejnych stałych
+  typu „good 66" w kodzie — dodaj wpis w INI. Limit: `good <= 66` (patrz handoff 2026-11-01).
 - Dispatcher `0x46BAD7` i `FUN_0044A0D9` należą do **EtapC**. `cnmod_hook` może dispatcher
   `0x46BAD7` **tylko obserwować** (licznik/log, potem `o_dispatcher`) — bez zmiany logiki.
 - **Frida** tylko na adresach, których MinHook nie hookuje; tylko odczyt/zapis RAM i patch
